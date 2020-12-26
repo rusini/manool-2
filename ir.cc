@@ -16,9 +16,9 @@
 using namespace rsn::opt;
 
 bool insn_binop::try_to_fold() {
-   if (!is<abs_imm>(lhs) || !is<abs_imm>(rhs))
-      return false;
+   if (RSN_LIKELY(!is<abs_imm>(lhs)) || RSN_LIKELY(!is<abs_imm>(rhs))) return false;
    auto lhs = as<abs_imm>(insn_binop::lhs)->value, rhs = as<abs_imm>(insn_binop::rhs)->value;
+
    switch (op) {
    default:
       RSN_UNREACHABLE();
@@ -91,15 +91,15 @@ bool insn_binop::try_to_fold() {
 }
 
 bool insn_cond_jmp::try_to_fold() {
-   if (!is<abs_imm>(cond))
-      return false;
+   if (RSN_LIKELY(!is<abs_imm>(cond))) return false;
+
    insn_jmp::make(this, std::move(as<abs_imm>(cond)->value ? dest1 : dest2));
    remove(); return true;
 }
 
 bool insn_switch_jmp::try_to_fold() {
-   if (!is<abs_imm>(index))
-      return false;
+   if (RSN_LIKELY(!is<abs_imm>(index))) return false;
+
    if (RSN_UNLIKELY(as<abs_imm>(index)->value >= dests.size())) insn_undefined::make(this); else
       insn_jmp::make(this, std::move(dests[as<abs_imm>(index)->value]));
    remove(); return true;
