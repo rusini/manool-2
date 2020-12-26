@@ -73,27 +73,29 @@ namespace rsn::opt {
    class insn_call final: public insn {
    public: // public data members
       std::vector<smart_ptr<vreg>> results;
-      smart_ptr<operand> proc; std::vector<smart_ptr<operand>> params;
+      smart_ptr<operand> dest; std::vector<smart_ptr<operand>> params;
    public: // construction/destruction
-      RSN_INLINE static auto make(bblock *owner, decltype(results) results, decltype(proc) proc, decltype(params) params)
-         { return new insn_call{owner, std::move(results), std::move(proc), std::move(params)}; }
-      RSN_INLINE static auto make(insn *next, decltype(results) results, decltype(proc) proc, decltype(params) params)
-         { return new insn_call{next, std::move(results), std::move(proc), std::move(params)}; }
+      RSN_INLINE static auto make(bblock *owner, decltype(results) results, decltype(dest) dest, decltype(params) params)
+         { return new insn_call{owner, std::move(results), std::move(dest), std::move(params)}; }
+      RSN_INLINE static auto make(insn *next, decltype(results) results, decltype(dest) dest, decltype(params) params)
+         { return new insn_call{next, std::move(results), std::move(dest), std::move(params)}; }
       RSN_NOINLINE insn_call *clone(bblock *owner) const override
-         { return make(owner, results, proc, params); }
+         { return make(owner, results, dest, params); }
       RSN_NOINLINE insn_call *clone(insn *next) const override
-         { return make(next, results, proc, params); }
+         { return make(next, results, dest, params); }
    public: // querying arguments and performing transformations
       RSN_NOINLINE auto outputs()->decltype(insn::outputs()) override
          { decltype(outputs()) res(results.size()); for (auto &it: results) res.push_back(&it); return res; }
       RSN_NOINLINE auto inputs()->decltype(insn::inputs()) override
-         { decltype(inputs()) res(1 + params.size()); res.push_back(&proc); for (auto &it: params) res.push_back(&it); return res; }
+         { decltype(inputs()) res(1 + params.size()); res.push_back(&dest); for (auto &it: params) res.push_back(&it); return res; }
+   public:
+      bool try_to_fold() override;
    private: // implementation helpers
-      template<typename Pos> RSN_INLINE explicit insn_call(Pos pos, decltype(results) &&results, decltype(proc) &&proc, decltype(params) &&params) noexcept
-         : insn{pos}, results(std::move(results)), proc(std::move(proc)), params(std::move(params)) {}
+      template<typename Pos> RSN_INLINE explicit insn_call(Pos pos, decltype(results) &&results, decltype(dest) &&dest, decltype(params) &&params) noexcept
+         : insn{pos}, results(std::move(results)), dest(std::move(dest)), params(std::move(params)) {}
    # if RSN_USE_DEBUG
    public:
-      void dump() const noexcept override { log << results << (results.empty() ? "" : " := ") << "call " << proc << " (" << params << ')'; }
+      void dump() const noexcept override { log << results << (results.empty() ? "" : " := ") << "call " << dest << " ( " << params << " )"; }
    # endif
    };
 
@@ -145,7 +147,7 @@ namespace rsn::opt {
          : insn{pos}, dest(std::move(dest)), src(std::move(src)) {}
    # if RSN_USE_DEBUG
    public:
-      void dump() const noexcept override { log << dest << " := load " << src; }
+      void dump() const noexcept override { log << dest << " := load [" << src << ']'; }
    # endif
    };
 
@@ -169,7 +171,7 @@ namespace rsn::opt {
          : insn{pos}, src(std::move(src)), dest(std::move(dest)) {}
    # if RSN_USE_DEBUG
    public:
-      void dump() const noexcept override { log << "store " << src << " -> " << dest; }
+      void dump() const noexcept override { log << "store " << src << " -> [" << dest << ']'; }
    # endif
    };
 
@@ -300,7 +302,7 @@ namespace rsn::opt {
          : insn{pos}, index(std::move(index)), dests(std::move(dests)) {}
    # if RSN_USE_DEBUG
    public:
-      void dump() const noexcept override { log << "jmp " << index << " to (" << dests << ')'; }
+      void dump() const noexcept override { log << "jmp " << index << " to ( " << dests << " )"; }
    # endif
    };
 
