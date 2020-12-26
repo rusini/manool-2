@@ -190,11 +190,37 @@ namespace rsn::opt {
       std::array<std::aligned_storage_t<sizeof(value_type)>, MinRes> _buf;
    };
 
-   // Iteration helpers
+   // Iteration Helpers ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
    template<typename Obj> RSN_NOINLINE auto all(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, small_vec<decltype(ptr->head())>>
-      { decltype(all(ptr)) res(ptr->count()); for (auto it = ptr->head(); it; it = it->next()) res.push_back(it); return res; }
+      { decltype(all(ptr)) res(ptr->count()); for (auto _ptr = ptr->head(); _ptr; _ptr = _ptr->next()) res.push_back(_ptr); return res; }
+   template<typename Obj> RSN_NOINLINE auto rev(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, small_vec<decltype(ptr->tail())>>
+      { decltype(all(ptr)) res(ptr->count()); for (auto _ptr = ptr->tail(); _ptr; _ptr = _ptr->prev()) res.push_back(_ptr); return res; }
+
+   template<typename Obj> RSN_NOINLINE auto all_after(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, small_vec<decltype(ptr->next())>>
+      { decltype(all_after(ptr)) res(ptr->owner()->count()); for (auto _ptr = ptr->next(); _ptr; _ptr = _ptr->next()) res.push_back(_ptr); return res; }
+   template<typename Obj> RSN_NOINLINE auto rev_after(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, small_vec<decltype(ptr->prev())>>
+      { decltype(rev_after(ptr)) res(ptr->owner()->count()); for (auto _ptr = ptr->prev(); _ptr; _ptr = _ptr->prev()) res.push_back(_ptr); return res; }
+
+   template<typename Obj> RSN_NOINLINE auto all_from(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, small_vec<decltype(ptr->next())>>
+      { decltype(all_from(ptr)) res(ptr->owner()->count()); decltype(ptr->next()) _ptr = ptr; do res.push_back(_ptr), _ptr = _ptr->next(); while (_ptr); return res; }
+   template<typename Obj> RSN_NOINLINE auto rev_from(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, small_vec<decltype(ptr->prev())>>
+      { decltype(rev_from(ptr)) res(ptr->owner()->count()); decltype(ptr->prev()) _ptr = ptr; do res.push_back(_ptr), _ptr = _ptr->prev(); while (_ptr); return res; }
+
    template<typename Obj> RSN_NOINLINE auto all(const smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(all(&*ptr))>
       { return all(&*ptr); }
+   template<typename Obj> RSN_NOINLINE auto rev(const smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(rev(&*ptr))>
+      { return rev(&*ptr); }
+
+   template<typename Obj> RSN_NOINLINE auto all_after(const smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(all_after(&*ptr))>
+      { return all_after(&*ptr); }
+   template<typename Obj> RSN_NOINLINE auto rev_after(const smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(rev_after(&*ptr))>
+      { return rev_after(&*ptr); }
+
+   template<typename Obj> RSN_NOINLINE auto all_from(const smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(all_from(&*ptr))>
+      { return all_from(&*ptr); }
+   template<typename Obj> RSN_NOINLINE auto rev_from(const smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(rev_from(&*ptr))>
+      { return rev_from(&*ptr); }
 
    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
