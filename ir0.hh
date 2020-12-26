@@ -360,6 +360,10 @@ namespace rsn::opt {
       RSN_INLINE explicit vreg(proc *owner) noexcept: _owner(owner) {}
       ~vreg() override = default;
       template<typename> friend class smart_ptr;
+   public:
+      struct {
+         smart_ptr<vreg> vr;
+      } temp;
    # if RSN_USE_DEBUG
    public:
       void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg ", sn), log << '(' << owner() << ')', std::fputs("\n\n", stderr); }
@@ -397,6 +401,10 @@ namespace rsn::opt {
          { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count; }
    private:
       ~bblock();
+   public:
+      struct {
+         bblock *bb;
+      } temp;
    # if RSN_USE_DEBUG
    public:
       void dump() const noexcept;

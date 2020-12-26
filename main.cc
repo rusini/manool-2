@@ -24,5 +24,16 @@ int main() {
    opt::insn_ret::make(bb4, {r_res});
 
    pr->dump();
+
+   auto pr_test = opt::proc::make({123, 456});
+   {  auto bb_test = opt::bblock::make(pr_test);
+      auto r_test = opt::vreg::make(pr_test);
+      opt::insn_entry::make(bb_test, {});
+      auto in = opt::insn_call::make(bb_test, {r_test}, pr, {opt::abs_imm::make(20)});
+      opt::insn_ret::make(bb_test, {});
+   }
+   pr_test->dump();
+   for (auto bb: all(pr_test)) for (auto in: all(bb)) in->try_to_fold();
+   pr_test->dump();
    return 0;
 }
