@@ -394,8 +394,8 @@ namespace rsn::opt {
       RSN_INLINE auto prev () const noexcept { return _prev; }
    public:
       RSN_INLINE void reattach(bblock *owner) noexcept { // move to the end of the specified new owner basic block
-         (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev;
-         _owner = owner, _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this;
+         (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev; --_owner->_count;
+         _owner = owner, _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count;
       }
    public: // querying arguments and performing transformations
       RSN_INLINE virtual auto outputs()->small_vec<smart_ptr<vreg> *> { return {}; }
