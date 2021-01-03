@@ -266,9 +266,9 @@ namespace rsn::opt {
       template<typename> friend class smart_ptr;
    # if RSN_USE_DEBUG
    public:
-      void dump() const noexcept override { std::fprintf(stderr, "N%u = abs #%lld(0x%llX)\n\n", sn, (long long)value, value); }
+      void dump() const noexcept override { std::fprintf(stderr, "N%u = abs #%lld=0x%llX\n\n", sn, (long long)value, value); }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "N%u#%lld(0x%llX)", sn, (long long)value, value); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "N%u#%lld=0x%llX", sn, (long long)value, value); }
       friend struct log;
    # endif // # if RSN_USE_DEBUG
    };
