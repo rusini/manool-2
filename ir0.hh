@@ -22,6 +22,7 @@
 # include <type_traits> // aligned_storage_t, enable_if_t, is_base_of_v, is_trivially_copyable_v, remove_cv_t
 # include <utility>     // forward, move, pair
 # include <vector>
+# include <unordered_set>
 
 # if RSN_USE_DEBUG
    # include <cstdio> // fprintf, fputc, fputs, stderr
@@ -360,7 +361,7 @@ namespace rsn::opt {
       RSN_INLINE explicit vreg(proc *owner) noexcept: _owner(owner) {}
       ~vreg() override = default;
       template<typename> friend class smart_ptr;
-   public:
+   public: // embedded temporary data
       struct {
          smart_ptr<vreg> vr;
       } temp;
@@ -401,9 +402,10 @@ namespace rsn::opt {
          { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count; }
    private:
       ~bblock();
-   public:
+   public: // embedded temporary data
       struct {
          bblock *bb;
+         std::unordered_set<bblock *> preds;
       } temp;
    # if RSN_USE_DEBUG
    public:
@@ -445,6 +447,10 @@ namespace rsn::opt {
          { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this, ++_owner->_count; }
       RSN_INLINE virtual ~insn()
          { (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev; --_owner->_count; }
+   public: // embedded temporary data
+      struct {
+         bool visited{};
+      } temp;
    # if RSN_USE_DEBUG
    public:
       virtual void dump() const noexcept = 0;
