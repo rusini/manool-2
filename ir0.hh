@@ -434,17 +434,22 @@ namespace rsn::opt {
          _owner = owner, _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count;
       }
    public: // querying arguments and performing transformations
-      RSN_INLINE virtual auto outputs()->small_vec<smart_ptr<vreg> *> { return {}; }
-      RSN_INLINE virtual auto inputs ()->small_vec<smart_ptr<operand> *> { return {}; }
-      RSN_INLINE virtual auto targets()->small_vec<bblock **> { return {}; }
+      RSN_INLINE auto outputs() { return _outputs; }
+      RSN_INLINE auto inputs () { return _inputs;  }
+      RSN_INLINE auto targets() { return _targets; }
       RSN_INLINE virtual bool try_to_fold() { return false; }
    private: // internal representation
       bblock *_owner; insn *_next, *_prev;
+      const range<smart_ptr<vreg> *>    _outputs;
+      const range<smart_ptr<operand> *> _inputs;
+      const range<bblock **>            _targets;
    protected: // implementation helpers
-      RSN_INLINE explicit insn(bblock *owner) noexcept: _owner(owner), _next{}, _prev(owner->_tail) // attach to the specified owner at the end
-         { _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this, ++_owner->_count; }
-      RSN_INLINE explicit insn(insn *next) noexcept: _owner(next->_owner), _next(next), _prev(next->_prev) // attach to the owner before the specified instruction
-         { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this, ++_owner->_count; }
+      RSN_INLINE explicit insn(bblock *owner, decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets) noexcept
+         : _outputs(outputs), _inputs(inputs), _targets(targets), _owner(owner), _next{}, _prev(owner->_tail)
+         { _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this, ++_owner->_count; } // attach to the specified owner at the end
+      RSN_INLINE explicit insn(insn *next, decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets) noexcept
+         : _outputs(outputs), _inputs(inputs), _targets(targets), _owner(next->_owner), _next(next), _prev(next->_prev)
+         { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this, ++_owner->_count; } // attach to the owner before the specified instruction
       RSN_INLINE virtual ~insn()
          { (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev; --_owner->_count; }
    public: // embedded temporary data

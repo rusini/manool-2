@@ -103,44 +103,65 @@ namespace rsn::opt {
       }
    }
 
+
+   template<typename It> struct range {
+      It _begin, _end;
+      template<typename Range> range(Range range): _begin(range.begin()), _end(range.end()) {}
+      template<typename Range> range &operator=(Range range) { _begin = range.begin(), _end = range.end(); }
+      range(It _begin, It _end): _begin(_begin), _end(_end) {}
+      template<typename It_> range(It_ _begin, It_ _end): _begin(_begin), _end(_end) {}
+
+      It begin() const noexcept { return _begin; }
+      It end() const noexcept { return _end; }
+   };
+
 }
 
 int main() {
    namespace opt = rsn::opt;
 
-   auto pr_int = opt::proc::make({123456, 1});
-   {  auto bb1 = opt::bblock::make(pr_int), bb2 = opt::bblock::make(pr_int), bb3 = opt::bblock::make(pr_int);
-      auto r_lhs_t = opt::vreg::make(pr_int), r_lhs_v = opt::vreg::make(pr_int);
-      auto r_rhs_t = opt::vreg::make(pr_int), r_rhs_v = opt::vreg::make(pr_int);
-      auto r_cond  = opt::vreg::make(pr_int);
+   auto pr_int = opt::proc::make({123456, 1001});
+   {  auto &&pr = pr_int;
+      auto bb1 = opt::bblock::make(pr), bb2 = opt::bblock::make(pr), bb3 = opt::bblock::make(pr);
+      auto r_lhs_t = opt::vreg::make(pr), r_lhs_v = opt::vreg::make(pr);
+      auto r_rhs_t = opt::vreg::make(pr), r_rhs_v = opt::vreg::make(pr);
+      auto r_cond  = opt::vreg::make(pr);
 
       opt::insn_entry::make(bb1, {r_lhs_t, r_lhs_v, r_rhs_t, r_rhs_v});
-      opt::insn_binop::make_cmpeq(bb1, r_cond, r_rhs_t, pr_int});
+      opt::insn_binop::make_cmpeq(bb1, r_cond, r_rhs_t, pr_int);
       opt::insn_cond_jmp::make(bb1, r_cond, bb2, bb3);
 
-      opt::insn_binop::make_add(bb2, r_lhs_v, r_lhs_v, r_rhs_v});
+      opt::insn_binop::make_add(bb2, r_lhs_v, r_lhs_v, r_rhs_v);
       opt::insn_ret::make(bb2, {r_lhs_t, r_lhs_v});
 
       opt::insn_undefined::make(bb3);
    }
 
+   auto pr_fact = opt::proc::make({123456, 1002}); // iterative version of Factorial
+   {  auto &&pr = pr_fact;
+      auto bb1 = opt::bblock::make(pr), bb2 = opt::bblock::make(pr), bb3 = opt::bblock::make(pr), bb4 = opt::bblock::make(pr), bb5 = opt::bblock::make(pr);
+      auto r_arg_t = opt::vreg::make(pr), r_arg_v = opt::vreg::make(pr);
+      auto r_res_t = opt::vreg::make(pr), r_res_v = opt::vreg::make(pr);
+      auto r_cond  = opt::vreg::make(pr);
 
-   auto pr = opt::proc::make({123, 456}); // iterative version of Factorial
-   auto r1 = opt::vreg::make(pr), r2 = opt::vreg::make(pr), r3 = opt::vreg::make(pr);
-   auto bb1 = opt::bblock::make(pr)/*, bb2 = opt::bblock::make(pr), bb3 = opt::bblock::make(pr), bb4 = opt::bblock::make(pr)*/;
+      opt::insn_entry::make(bb1, {r_arg_t, r_arg_v});
+      opt::insn_binop::make_cmpeq(bb1, r_cond, r_arg_t, pr_int);
+      opt::insn_cond_jmp::make(bb1, r_cond, bb2, bb5);
 
-   opt::insn_entry::make(bb1, {});
-   opt::insn_mov::make(bb1, r1, opt::abs_imm::make(123));
-   opt::insn_mov::make(bb1, r2, opt::abs_imm::make(456));
-   opt::insn_binop::make_add(bb1, r3, r1, r2);
-   opt::insn_ret::make(bb1, {r3});
+      opt::insn_binop::make_cmpne(bb2, r_cond, r_arg_v, opt::abs_imm::make(0));
+      opt::insn_cond_jmp::make(bb2, r_cond, bb3, bb4);
 
-   pr->dump();
-   opt::update_cfg_preds(pr);
-   while (opt::transform_cfold(pr) || opt::transform_cpropag(pr));
-   opt::transform_dse(pr);
-   opt::transform_cfg_merge(pr);
-   pr->dump();
+      opt::insn_binop::make_umul(bb3, r_res_v, r_res_v, r_arg_v);
+      opt::insn_binop::make_sub(bb3, r_arg_v, r_arg_v, opt::abs_imm::make(1));
+      opt::insn_jmp::make(bb3, bb2);
+
+      opt::insn_ret::make(bb4, {r_res_t, r_res_v});
+
+      opt::insn_undefined::make(bb5);
+   }
+
+   pr_int->dump();
+   pr_fact->dump();
 
    return 0;
 }
