@@ -27,6 +27,8 @@ rsn::lib::slice_ref<std::vector<int>::const_iterator> f4() { return {}; }
 const rsn::lib::slice_ref<std::vector<int>::iterator> f5() { return {}; }
 const rsn::lib::slice_ref<std::vector<int>::const_iterator> f6() { return {}; }
 
+void ff(rsn::lib::slice_ref<std::vector<int>::iterator>) {}
+
 int main() {
    std::vector<int> a1{11, 12, 13, 21, 22, 33};
    const std::vector<int> a2{11, 12, 13, 21, 22, 33};
@@ -35,11 +37,12 @@ int main() {
    const rsn::lib::slice_ref<std::vector<int>::iterator> s3 = s1;
    const rsn::lib::slice_ref<std::vector<int>::const_iterator> s4 = s1;
 
-   s2 = s4;
+   //const rsn::lib::slice_ref<std::vector<int>::iterator> s1;
+   rsn::lib::slice_ref<std::vector<int>::const_iterator> ss = s3;
 
-   //int x[]{123, 456, 789, 1, 2, 3};
-   std::set<int> x{123, 456, 789, 1, 2, 3};
-   for (auto n: rsn::lib::make_slice_ref(x).drop_head().drop_tail_ex(2)) std:printf("%d\n", n);
+   int x[]{123, 456, 789, 1, 2, 3};
+   //std::set<int> x{123, 456, 789, 1, 2, 3};
+   for (auto n: rsn::lib::make_slice_ref(x).drop_head().drop_tail(2).reverse()) std::printf("%d\n", n);
 
    return {};
 }
