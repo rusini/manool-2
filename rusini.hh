@@ -31,31 +31,31 @@ namespace rsn::lib {
 
    template<typename Obj>
    class smart_ptr { // simple, intrussive, and MT-unsafe analog of std::shared_ptr
-   public: // Standard operations
+   public: // standard operations
       smart_ptr() = default;
-      RSN_INLINE smart_ptr(const smart_ptr &rhs) noexcept: rep(rhs.rep) { retain(); }
-      RSN_INLINE smart_ptr(smart_ptr &&rhs) noexcept: rep(rhs.rep) { rhs.rep = {}; }
+      RSN_INLINE smart_ptr(const smart_ptr &rhs) noexcept: rep(rhs) { retain(); }
+      RSN_INLINE smart_ptr(smart_ptr &&rhs) noexcept: rep(rhs) { rhs.rep = {}; }
       RSN_INLINE ~smart_ptr() { release(); }
-      RSN_INLINE smart_ptr &operator=(const smart_ptr &rhs) noexcept { rhs.retain(), release(), rep = rhs.rep; return *this; }
-      RSN_INLINE smart_ptr &operator=(smart_ptr &&rhs) noexcept { swap(*this, rhs); return *this; }
+      RSN_INLINE smart_ptr &operator=(const smart_ptr &rhs) noexcept { rhs.retain(), release(), rep = rhs; return *this; }
+      RSN_INLINE smart_ptr &operator=(smart_ptr &&rhs) noexcept { swap(rhs); return *this; }
       RSN_INLINE void swap(smart_ptr &rhs) noexcept { using std::swap; swap(rep, rhs.rep); }
-   public: // Miscellaneous operations
+   public: // miscellaneous operations
       template<typename ...Args> RSN_INLINE RSN_NODISCARD static auto make(Args &&...args) { return smart_ptr{new Obj(std::forward<Args>(args)...)}; }
-      template<typename Rhs> RSN_INLINE smart_ptr(const smart_ptr<Rhs> &rhs) noexcept: rep(rhs.rep) { retain(); }
-      template<typename Rhs> RSN_INLINE smart_ptr(smart_ptr<Rhs> &&rhs) noexcept: rep(rhs.rep) { rhs.rep = {}; }
-      template<typename Rhs> RSN_INLINE smart_ptr &operator=(const smart_ptr<Rhs> &rhs) noexcept { rhs.retain(), release(), rep = rhs.rep; return *this; }
-      template<typename Rhs> RSN_INLINE smart_ptr &operator=(smart_ptr<Rhs> &&rhs) noexcept { rep = rhs.rep, rhs.rep = {}; return *this; }
+      template<typename Rhs> RSN_INLINE smart_ptr(const smart_ptr<Rhs> &rhs) noexcept: rep(rhs) { retain(); }
+      template<typename Rhs> RSN_INLINE smart_ptr(smart_ptr<Rhs> &&rhs) noexcept: rep(rhs.rep) { rhs = {}; }
+      template<typename Rhs> RSN_INLINE smart_ptr &operator=(const smart_ptr<Rhs> &rhs) noexcept { rhs.retain(), release(), rep = rhs; return *this; }
+      template<typename Rhs> RSN_INLINE smart_ptr &operator=(smart_ptr<Rhs> &&rhs) noexcept { rep = rhs, rhs.rep = {}; return *this; }
       RSN_INLINE operator Obj *() const noexcept { return rep; }
       RSN_INLINE Obj &operator*() const noexcept { return *rep; }
       RSN_INLINE Obj *operator->() const noexcept { return rep; }
-   private: // Internal representation
+   private: // internal representation
       Obj *rep{};
       template<typename> friend class smart_ptr;
-   private: // Implementation helpers
+   private: // implementation helpers
       RSN_INLINE explicit smart_ptr(Obj *rep) noexcept: rep(rep) {}
       RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++rep->smart_rc::rc; }
       RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--rep->smart_rc::rc)) delete rep; }
-      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>> as_smart(const smart_ptr<Src> &) noexcept;
+      template<typename Dest, typename Src> friend smart_ptr<Dest> as_smart(const smart_ptr<Src> &) noexcept;
    };
    // Non-member functions
    template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept { lhs.swap(rhs); }
@@ -70,6 +70,18 @@ namespace rsn::lib {
       smart_rc(const smart_rc &) = delete;
       smart_rc &operator=(const smart_rc &) = delete;
    };
+
+   // Downcast utilities
+   template<typename Dest, typename Src> RSN_INLINE inline bool is(Src *src) noexcept
+      { return dynamic_cast<Dest *>(src); }
+   template<typename Dest, typename Src> RSN_INLINE inline Dest *as(Src *src) noexcept
+      { return static_cast<Dest *>(src); }
+   template<typename Dest, typename Src> RSN_INLINE inline bool is(const smart_ptr<Src> &src) noexcept
+      { return is<Dest>(&*src); }
+   template<typename Dest, typename Src> RSN_INLINE inline Dest *as(const smart_ptr<Src> &src) noexcept
+      { return as<Dest>(&*src); }
+   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline smart_ptr<Dest> as_smart(const smart_ptr<Src> &src) noexcept
+      { return src.retain(), smart_ptr{as<Dest>(src)}; }
 
    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -147,8 +159,21 @@ namespace rsn::lib {
 
    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+   namespace aux {
+      using std::begin, std::end, std::cbegin, std::cend;
+      template<typename Cont> RSN_INLINE static auto _begin(Cont &cont) noexcept(begin(cont)) { return begin(cont); }
+      template<typename Cont> RSN_INLINE static auto _end(Cont &cont) noexcept(end(cont)) { return end(cont); }
+      template<typename Cont> RSN_INLINE static auto _cbegin(Cont &cont) noexcept(cbegin(cont)) { return cbegin(cont); }
+      template<typename Cont> RSN_INLINE static auto _cend(Cont &cont) noexcept(cend(cont)) { return cend(cont); }
+      using std::rbegin, std::rend, std::crbegin, std::crend;
+      template<typename Cont> RSN_INLINE static auto _rbegin(Cont &cont) noexcept(rbegin(cont)) { return rbegin(cont); }
+      template<typename Cont> RSN_INLINE static auto _rend(Cont &cont) noexcept(rend(cont)) { return rend(cont); }
+      template<typename Cont> RSN_INLINE static auto _crbegin(Cont &cont) noexcept(crbegin(cont)) { return crbegin(cont); }
+      template<typename Cont> RSN_INLINE static auto _crend(Cont &cont) noexcept(crend(cont)) { return crend(cont); }
+   }
+
    template<typename Begin, typename End = Begin>
-   class slice_ref { // non-owning "reference" to a range of container elements (generalized analog of llvm::ArrayRef)
+   class slice_ref { // non-owning view that refers to a range of container elements (generalized analog of llvm::ArrayRef)
    public: // typedefs to imitate standard containers
       typedef Begin                                                    iterator, const_iterator;
       typedef typename std::iterator_traits<iterator>::value_type      value_type;
@@ -182,22 +207,24 @@ namespace rsn::lib {
       template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref &operator=(const slice_ref<RhsBegin, RhsEnd> &&rhs) noexcept
          { _begin = std::move(rhs._begin), _end = std::move(rhs._end); return *this; }
    public:
-      template<typename Rhs> RSN_INLINE slice_ref(Rhs &rhs): _begin(adl_begin(rhs)), _end(adl_end(rhs)) {}
       template<typename Rhs> slice_ref(Rhs &&) = delete;
-      template<typename Rhs> RSN_INLINE slice_ref &operator=(Rhs &rhs) { _begin = adl_begin(rhs), _end = adl_end(rhs); return *this; }
+      template<typename Rhs> RSN_INLINE slice_ref(Rhs &rhs) noexcept(noexcept(aux::_begin(rhs), aux::_end(rhs)))
+         : _begin(aux::_begin(rhs)), _end(aux::_end(rhs)) {}
       template<typename Rhs> slice_ref &operator=(Rhs &&) = delete;
+      template<typename Rhs> RSN_INLINE slice_ref &operator=(Rhs &rhs) noexcept(noexcept(aux::_begin(rhs), aux::_end(rhs)))
+         { _begin = _begin(rhs), _end = _end(rhs); return *this; }
    public: // container-like access/iteration
-      RSN_INLINE bool empty() const noexcept(noexcept(_end == _begin))
+      RSN_INLINE bool empty() const noexcept(noexcept(_end == _begin)) // gcc bug #52869 prior to gcc-9
          { return _end == _begin; }
-      RSN_INLINE size_type size() const noexcept(noexcept(_end - _begin))
-         { return _end - _begin; }
-      RSN_INLINE size_type size_ex() const noexcept(noexcept(std::distance(_begin, _end)))
-         { return std::distance(_begin, _end); }
+      RSN_INLINE size_type size() const noexcept(noexcept(end() - begin()))
+         { return end() - begin(); }
+      RSN_INLINE size_type size_ex() const noexcept(noexcept(std::distance(begin(), end())))
+         { return std::distance(begin(), end()); }
    public:
       RSN_INLINE auto begin() const noexcept { return _begin; }
       RSN_INLINE auto end() const noexcept { return _end; }
-      RSN_INLINE auto rbegin() const noexcept { return std::reverse_iterator(_end); }
-      RSN_INLINE auto rend() const noexcept { return std::reverse_iterator(_begin); }
+      RSN_INLINE auto rbegin() const noexcept { return std::reverse_iterator(end()); }
+      RSN_INLINE auto rend() const noexcept { return std::reverse_iterator(begin()); }
       RSN_INLINE auto cbegin() const noexcept { return begin(); }
       RSN_INLINE auto cend() const noexcept { return end(); }
       RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
@@ -205,28 +232,25 @@ namespace rsn::lib {
    public: // convenience operations
       RSN_INLINE reference head() const noexcept(noexcept(*_begin))
          { return *_begin; }
-      RSN_INLINE reference tail() const noexcept(noexcept(*std::prev(_end)))
-         { return *std::prev(_end); }
+      RSN_INLINE reference tail() const noexcept(noexcept(*std::prev(end())))
+         { return *std::prev(end()); }
       RSN_INLINE auto drop_head() const noexcept(noexcept(drop_head_ex(1)))
          { return drop_head_ex(1); }
       RSN_INLINE auto drop_tail() const noexcept(noexcept(drop_tail_ex(1)))
          { return drop_tail_ex(1); }
-      RSN_INLINE auto drop_head(difference_type size) const noexcept(noexcept(lib::slice_ref{_begin + size, _end}))
-         { return lib::slice_ref{_begin + size, _end}; }
-      RSN_INLINE auto drop_tail(difference_type size) const noexcept(noexcept(lib::slice_ref{_begin, _end - size}))
-         { return lib::slice_ref{_begin, _end - size}; }
-      RSN_INLINE auto drop_head_ex(difference_type size) const noexcept(noexcept(lib::slice_ref{std::next(_begin, size), _end}))
-         { return lib::slice_ref{std::next(_begin, size), _end}; }
-      RSN_INLINE auto drop_tail_ex(difference_type size) const noexcept(noexcept(lib::slice_ref{_begin, std::prev(_end, size)}))
-         { return lib::slice_ref{_begin, std::prev(_end, size)}; }
+      RSN_INLINE auto drop_head(difference_type size) const noexcept(noexcept(lib::slice_ref{begin() + size, end()}))
+         { return lib::slice_ref{begin() + size, end()}; }
+      RSN_INLINE auto drop_tail(difference_type size) const noexcept(noexcept(lib::slice_ref{begin(), end() - size}))
+         { return lib::slice_ref{begin(), end() - size}; }
+      RSN_INLINE auto drop_head_ex(difference_type size) const noexcept(noexcept(lib::slice_ref{std::next(begin(), size), end()}))
+         { return lib::slice_ref{std::next(begin(), size), end()}; }
+      RSN_INLINE auto drop_tail_ex(difference_type size) const noexcept(noexcept(lib::slice_ref{begin(), std::prev(end(), size)}))
+         { return lib::slice_ref{begin(), std::prev(end(), size)}; }
       RSN_INLINE auto reverse() const noexcept(noexcept(lib::slice_ref{rbegin(), rend()}))
          { return lib::slice_ref{rbegin(), rend()}; }
    private: // internal representation
       Begin _begin; End _end;
       template<typename, typename> friend class slice_ref;
-   private: // implementation helpers
-      template<typename Cont> RSN_INLINE static auto adl_begin(Cont &cont) { using std::begin; return begin(cont); }
-      template<typename Cont> RSN_INLINE static auto adl_end(Cont &cont) { using std::end; return end(cont); }
    };
    // non-member functions
    template<typename Begin, typename End = Begin>

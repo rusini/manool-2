@@ -6,23 +6,13 @@
 
 # include "rusini.hh"
 
-   /*class smart_rc {
-      long rc = 1;
-      template<typename> friend class smart_ptr;
-   protected:
-      smart_rc() = default;
-      ~smart_rc() = default;
-   public:
-      smart_rc(const smart_rc &) = delete;
-      smart_rc &operator=(const smart_rc &) = delete;
-   };
 class n: rsn::lib::smart_rc {
    n() = default;
    ~n() = default;
    template<typename> friend class rsn::lib::smart_ptr;
 public: // construction/destruction
    RSN_INLINE RSN_NODISCARD static auto make() { return rsn::lib::smart_ptr<n>::make(); }
- };*/
+};
 
 struct it {
    it() = default;
@@ -67,7 +57,7 @@ int main() {
    x.push_back(3);
    for (auto n: rsn::lib::make_slice_ref(x).reverse()) std::printf("%d\n", n);*/
 
-   //auto pn = n::make();
+   auto pn = n::make();
 
    return {};
 }
