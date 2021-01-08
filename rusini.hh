@@ -18,10 +18,134 @@
 # include <type_traits>
 # include <utility>
 # include <vector>
+# include <array>
+# include <cstring>
 
 # include "rusini0.hh"
 
 namespace rsn::lib {
+
+   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+   class smart_rc;
+
+   template<typename Obj>
+   class smart_ptr { // simple, intrussive, and MT-unsafe analog of std::shared_ptr
+   public: // Standard operations
+      smart_ptr() = default;
+      RSN_INLINE smart_ptr(const smart_ptr &rhs) noexcept: rep(rhs.rep) { retain(); }
+      RSN_INLINE smart_ptr(smart_ptr &&rhs) noexcept: rep(rhs.rep) { rhs.rep = {}; }
+      RSN_INLINE ~smart_ptr() { release(); }
+      RSN_INLINE smart_ptr &operator=(const smart_ptr &rhs) noexcept { rhs.retain(), release(), rep = rhs.rep; return *this; }
+      RSN_INLINE smart_ptr &operator=(smart_ptr &&rhs) noexcept { swap(*this, rhs); return *this; }
+      RSN_INLINE void swap(smart_ptr &rhs) noexcept { using std::swap; swap(rep, rhs.rep); }
+   public: // Miscellaneous operations
+      template<typename ...Args> RSN_INLINE RSN_NODISCARD static auto make(Args &&...args) { return smart_ptr{new Obj(std::forward<Args>(args)...)}; }
+      template<typename Rhs> RSN_INLINE smart_ptr(const smart_ptr<Rhs> &rhs) noexcept: rep(rhs.rep) { retain(); }
+      template<typename Rhs> RSN_INLINE smart_ptr(smart_ptr<Rhs> &&rhs) noexcept: rep(rhs.rep) { rhs.rep = {}; }
+      template<typename Rhs> RSN_INLINE smart_ptr &operator=(const smart_ptr<Rhs> &rhs) noexcept { rhs.retain(), release(), rep = rhs.rep; return *this; }
+      template<typename Rhs> RSN_INLINE smart_ptr &operator=(smart_ptr<Rhs> &&rhs) noexcept { rep = rhs.rep, rhs.rep = {}; return *this; }
+      RSN_INLINE operator Obj *() const noexcept { return rep; }
+      RSN_INLINE Obj &operator*() const noexcept { return *rep; }
+      RSN_INLINE Obj *operator->() const noexcept { return rep; }
+   private: // Internal representation
+      Obj *rep{};
+      template<typename> friend class smart_ptr;
+   private: // Implementation helpers
+      RSN_INLINE explicit smart_ptr(Obj *rep) noexcept: rep(rep) {}
+      RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++rep->smart_rc::rc; }
+      RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--rep->smart_rc::rc)) delete rep; }
+      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>> as_smart(const smart_ptr<Src> &) noexcept;
+   };
+   // Non-member functions
+   template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept { lhs.swap(rhs); }
+
+   class smart_rc {
+      long rc = 1;
+      template<typename> friend class smart_ptr;
+   protected:
+      smart_rc() = default;
+      ~smart_rc() = default;
+   public:
+      smart_rc(const smart_rc &) = delete;
+      smart_rc &operator=(const smart_rc &) = delete;
+   };
+
+   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+   template<typename Obj, std::size_t MinRes = /*two cache-lines*/ (128 - sizeof(Obj *) - sizeof(std::size_t)) / sizeof(Obj)>
+   class small_vec { // lightweight analog of llvm::SmallVector
+   public: // typedefs to imitate standard containers
+      typedef Obj              value_type;
+      typedef value_type       *pointer;
+      typedef const value_type *const_pointer;
+      typedef value_type       &reference;
+      typedef const value_type &const_reference;
+      typedef std::size_t      size_type;
+      typedef std::ptrdiff_t   difference_type;
+      typedef pointer          iterator;
+      typedef const_pointer    const_iterator;
+      typedef std::reverse_iterator<iterator> reverse_iterator;
+      typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+   public: // construction/destruction
+      RSN_INLINE explicit small_vec(std::size_t res = 0):
+         _pbuf(reinterpret_cast<decltype(_pbuf)>(RSN_LIKELY(res <= MinRes) ? _buf.data() : new std::aligned_union_t<0, value_type>[res])) {
+      }
+      small_vec(std::initializer_list<value_type> init): small_vec(init.size()) {
+         for (auto &&val: init) push_back(val);
+      }
+      RSN_INLINE small_vec(small_vec &&rhs) noexcept: _size(rhs._size) {
+         rhs._size = 0;
+         if (RSN_UNLIKELY(rhs._pbuf != reinterpret_cast<decltype(rhs._pbuf)>(rhs._buf.data())))
+            _pbuf = rhs._pbuf, rhs._pbuf = reinterpret_cast<decltype(rhs._pbuf)>(rhs._buf.data());
+         else {
+            _pbuf = reinterpret_cast<decltype(_pbuf)>(_buf.data());
+            if constexpr (std::is_trivially_copyable_v<value_type>)
+               std::memcpy(&_buf, &rhs._buf, sizeof _buf);
+            else for (std::size_t sn = 0; sn < _size; ++sn)
+               new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + sn) const value_type(std::move(rhs._pbuf[sn])), rhs._pbuf[sn].~value_type();
+         }
+      }
+      ~small_vec() {
+         if constexpr (!std::is_trivially_copyable_v<value_type>)
+            for (std::size_t sn = _size; sn;) _pbuf[--sn].~value_type();
+         if (RSN_UNLIKELY(_pbuf != reinterpret_cast<decltype(_pbuf)>(_buf.data())))
+            delete[] reinterpret_cast<std::aligned_union_t<0, value_type> *>(const_cast<std::remove_cv_t<Obj> *>(_pbuf));
+      }
+   public:
+      small_vec &operator=(small_vec &&) = delete;
+   public: // incremental building
+      void push_back(const value_type &obj) noexcept       { new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + _size++) const value_type(obj); }
+      RSN_INLINE void push_back(value_type &&obj) noexcept { new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + _size++) const value_type(std::move(obj)); }
+   public: // access/iteration
+      RSN_INLINE bool empty() const noexcept { return !size(); }
+      RSN_INLINE size_type size() const noexcept { return _size; }
+      RSN_INLINE pointer data() noexcept             { return _pbuf; }
+      RSN_INLINE const_pointer data() const noexcept { return _pbuf; }
+   public:
+      RSN_INLINE iterator       begin() noexcept        { return _pbuf; }
+      RSN_INLINE const_iterator begin() const noexcept  { return _pbuf; }
+      RSN_INLINE iterator       end() noexcept          { return _pbuf + _size; }
+      RSN_INLINE const_iterator end() const noexcept    { return _pbuf + _size; }
+      RSN_INLINE const_iterator cbegin() const noexcept { return begin(); }
+      RSN_INLINE const_iterator cend() const noexcept   { return end(); }
+      RSN_INLINE auto rbegin() noexcept        { return reverse_iterator(end()); }
+      RSN_INLINE auto rbegin() const noexcept  { return const_reverse_iterator(end()); }
+      RSN_INLINE auto rend() noexcept          { return reverse_iterator(begin()); }
+      RSN_INLINE auto rend() const noexcept    { return const_reverse_iterator(begin()); }
+      RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
+      RSN_INLINE auto crend() const noexcept   { return rend(); }
+   public:
+      void reset(std::size_t res = 0) {
+         this->~small_vec(), new (this) small_vec(res);
+      }
+   private: // internal representation
+      pointer _pbuf;
+      size_type _size = 0;
+      std::array<std::aligned_union_t<0, value_type>, MinRes> _buf;
+   };
+
+   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    template<typename Begin, typename End = Begin>
    class slice_ref { // non-owning "reference" to a range of container elements (generalized analog of llvm::ArrayRef)

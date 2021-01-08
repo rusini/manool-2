@@ -6,6 +6,24 @@
 
 # include "rusini.hh"
 
+   /*class smart_rc {
+      long rc = 1;
+      template<typename> friend class smart_ptr;
+   protected:
+      smart_rc() = default;
+      ~smart_rc() = default;
+   public:
+      smart_rc(const smart_rc &) = delete;
+      smart_rc &operator=(const smart_rc &) = delete;
+   };
+class n: rsn::lib::smart_rc {
+   n() = default;
+   ~n() = default;
+   template<typename> friend class rsn::lib::smart_ptr;
+public: // construction/destruction
+   RSN_INLINE RSN_NODISCARD static auto make() { return rsn::lib::smart_ptr<n>::make(); }
+ };*/
+
 struct it {
    it() = default;
    it(const it &) { std::puts("it(const it &)"); }
@@ -40,9 +58,16 @@ int main() {
    //const rsn::lib::slice_ref<std::vector<int>::iterator> s1;
    rsn::lib::slice_ref<std::vector<int>::const_iterator> ss = s3;
 
-   int x[]{123, 456, 789, 1, 2, 3};
-   //std::set<int> x{123, 456, 789, 1, 2, 3};
+   /*rsn::lib::small_vec<int> x{123, 456, 789, 1, 2, 3};
    for (auto n: rsn::lib::make_slice_ref(x).drop_head().drop_tail(2).reverse()) std::printf("%d\n", n);
+
+   x.reset(100);
+   x.push_back(1);
+   x.push_back(2);
+   x.push_back(3);
+   for (auto n: rsn::lib::make_slice_ref(x).reverse()) std::printf("%d\n", n);*/
+
+   //auto pn = n::make();
 
    return {};
 }
