@@ -6,6 +6,15 @@
 
 # include "rusini.hh"
 
+namespace lib {
+   class smart_rc {
+   public:
+      long rc = 1;
+   protected:
+      smart_rc() = default;
+      ~smart_rc() = default;
+   };
+}
 class n: rsn::lib::smart_rc {
    n() = default;
    ~n() = default;

@@ -25,12 +25,27 @@
 
 namespace rsn::lib {
 
-   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+   // Utilities for Raw and Smart Pointers /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+   class noncopyable {
+   public:
+      noncopyable(const noncopyable &) = delete;
+      noncopyable &operator=(const noncopyable &) = delete;
+   protected:
+      noncopyable() = default;
+      ~noncopyable() = default;
+   };
+   // Downcast for raw pointers to non-copyables
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable, Src>, bool> is(Src *src) noexcept
+      { return dynamic_cast<Dest *>(src); }
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable, Src>, Dest *> as(Src *src) noexcept
+      { return static_cast<Dest *>(src); }
 
    class smart_rc;
 
    template<typename Obj>
    class smart_ptr { // simple, intrussive, and MT-unsafe analog of std::shared_ptr
+      static_assert(std::is_base_of_v<smart_rc, Obj>);
    public: // standard operations
       smart_ptr() = default;
       RSN_INLINE smart_ptr(const smart_ptr &rhs) noexcept: rep(rhs) { retain(); }
@@ -42,7 +57,7 @@ namespace rsn::lib {
    public: // miscellaneous operations
       template<typename ...Args> RSN_INLINE RSN_NODISCARD static auto make(Args &&...args) { return smart_ptr{new Obj(std::forward<Args>(args)...)}; }
       template<typename Rhs> RSN_INLINE smart_ptr(const smart_ptr<Rhs> &rhs) noexcept: rep(rhs) { retain(); }
-      template<typename Rhs> RSN_INLINE smart_ptr(smart_ptr<Rhs> &&rhs) noexcept: rep(rhs.rep) { rhs = {}; }
+      template<typename Rhs> RSN_INLINE smart_ptr(smart_ptr<Rhs> &&rhs) noexcept: rep(rhs) { rhs.rep = {}; }
       template<typename Rhs> RSN_INLINE smart_ptr &operator=(const smart_ptr<Rhs> &rhs) noexcept { rhs.retain(), release(), rep = rhs; return *this; }
       template<typename Rhs> RSN_INLINE smart_ptr &operator=(smart_ptr<Rhs> &&rhs) noexcept { rep = rhs, rhs.rep = {}; return *this; }
       RSN_INLINE operator Obj *() const noexcept { return rep; }
@@ -53,35 +68,29 @@ namespace rsn::lib {
       template<typename> friend class smart_ptr;
    private: // implementation helpers
       RSN_INLINE explicit smart_ptr(Obj *rep) noexcept: rep(rep) {}
-      RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++rep->smart_rc::rc; }
-      RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--rep->smart_rc::rc)) delete rep; }
-      template<typename Dest, typename Src> friend smart_ptr<Dest> as_smart(const smart_ptr<Src> &) noexcept;
+      RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++rep->lib::smart_rc::rc; }
+      RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--rep->lib::smart_rc::rc)) delete rep; }
+      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>> as_smart(const smart_ptr<Src> &) noexcept;
    };
    // Non-member functions
-   template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept { lhs.swap(rhs); }
+   template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept
+      { lhs.swap(rhs); }
+   // Downcast utilities
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, bool> is(const smart_ptr<Src> &src) noexcept
+      { return is<Dest>(&*src); }
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, Dest *> as(const smart_ptr<Src> &src) noexcept
+      { return as<Dest>(&*src); }
+   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>>
+      as_smart(const smart_ptr<Src> &src) noexcept { return src.retain(), smart_ptr{as<Dest>(src)}; }
 
-   class smart_rc {
-      long rc = 1;
-      template<typename> friend class smart_ptr;
+   class smart_rc: noncopyable {
    protected:
       smart_rc() = default;
       ~smart_rc() = default;
-   public:
-      smart_rc(const smart_rc &) = delete;
-      smart_rc &operator=(const smart_rc &) = delete;
+   private:
+      long rc = 1;
+      template<typename> friend class smart_ptr;
    };
-
-   // Downcast utilities
-   template<typename Dest, typename Src> RSN_INLINE inline bool is(Src *src) noexcept
-      { return dynamic_cast<Dest *>(src); }
-   template<typename Dest, typename Src> RSN_INLINE inline Dest *as(Src *src) noexcept
-      { return static_cast<Dest *>(src); }
-   template<typename Dest, typename Src> RSN_INLINE inline bool is(const smart_ptr<Src> &src) noexcept
-      { return is<Dest>(&*src); }
-   template<typename Dest, typename Src> RSN_INLINE inline Dest *as(const smart_ptr<Src> &src) noexcept
-      { return as<Dest>(&*src); }
-   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline smart_ptr<Dest> as_smart(const smart_ptr<Src> &src) noexcept
-      { return src.retain(), smart_ptr{as<Dest>(src)}; }
 
    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -252,7 +261,7 @@ namespace rsn::lib {
       Begin _begin; End _end;
       template<typename, typename> friend class slice_ref;
    };
-   // non-member functions
+   // Non-member functions
    template<typename Begin, typename End = Begin>
    RSN_INLINE inline void swap(slice_ref<Begin, End> &lhs, slice_ref<Begin, End> &rhs) noexcept
       { lhs.swap(rhs); }
@@ -264,7 +273,7 @@ namespace rsn::lib {
    RSN_INLINE inline bool operator!=(const slice_ref<LhsBegin, LhsEnd> &lhs, const slice_ref<RhsBegin, RhsEnd> &rhs)
    noexcept(noexcept(lhs.begin() != rhs.begin() || lhs.end() != rhs.end()))
       { return lhs.begin() != rhs.begin() || lhs.end() != rhs.end(); }
-   // construction helper
+   // Construction helper
    template<typename Cont> RSN_INLINE inline auto make_slice_ref(Cont &cont)
       { using std::begin, std::end; return slice_ref{begin(cont), end(cont)}; }
 
