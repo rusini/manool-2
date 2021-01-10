@@ -1,6 +1,8 @@
 
 # include <cstdio>
 # include <set>
+# include <map>
+# include <list>
 # include <utility>
 # include <vector>
 
@@ -57,16 +59,21 @@ int main() {
    //const rsn::lib::slice_ref<std::vector<int>::iterator> s1;
    rsn::lib::slice_ref<std::vector<int>::const_iterator> ss = s3;
 
-   /*rsn::lib::small_vec<int> x{123, 456, 789, 1, 2, 3};
+   rsn::lib::small_vec<int> x{123, 456, 789, 1, 2, 3};
    for (auto n: rsn::lib::make_slice_ref(x).drop_head().drop_tail(2).reverse()) std::printf("%d\n", n);
 
    x.reset(100);
    x.push_back(1);
    x.push_back(2);
    x.push_back(3);
-   for (auto n: rsn::lib::make_slice_ref(x).reverse()) std::printf("%d\n", n);*/
+   *x.begin() = 11;
+   for (auto n: rsn::lib::make_slice_ref(x).reverse()) std::printf("%d\n", n);
 
    auto pn = n::make();
+
+   rsn::lib::small_vec<const int> y(10);
+   y.push_back(1);
+   //*y.begin() = 11;
 
    return {};
 }

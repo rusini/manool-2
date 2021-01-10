@@ -92,7 +92,7 @@ namespace rsn::lib {
       template<typename> friend class smart_ptr;
    };
 
-   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+   // Buffers Optimized for Small Sizes ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    template<typename Obj, std::size_t MinRes = /*two cache-lines*/ (128 - sizeof(Obj *) - sizeof(std::size_t)) / sizeof(Obj)>
    class small_vec { // lightweight analog of llvm::SmallVector
@@ -109,11 +109,11 @@ namespace rsn::lib {
       typedef std::reverse_iterator<iterator> reverse_iterator;
       typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
    public: // construction/destruction
-      RSN_INLINE explicit small_vec(std::size_t res = 0):
+      RSN_INLINE explicit small_vec(size_type res = 0):
          _pbuf(reinterpret_cast<decltype(_pbuf)>(RSN_LIKELY(res <= MinRes) ? _buf.data() : new std::aligned_union_t<0, value_type>[res])) {
       }
-      small_vec(std::initializer_list<value_type> init): small_vec(init.size()) {
-         for (auto &&val: init) push_back(val);
+      small_vec(std::initializer_list<value_type> rhs): small_vec(rhs.size()) {
+         for (auto &&obj: rhs) push_back(obj);
       }
       RSN_INLINE small_vec(small_vec &&rhs) noexcept: _size(rhs._size) {
          rhs._size = 0;
@@ -123,21 +123,24 @@ namespace rsn::lib {
             _pbuf = reinterpret_cast<decltype(_pbuf)>(_buf.data());
             if constexpr (std::is_trivially_copyable_v<value_type>)
                std::memcpy(&_buf, &rhs._buf, sizeof _buf);
-            else for (std::size_t sn = 0; sn < _size; ++sn)
+            else for (decltype(_size) sn = 0; sn < _size; ++sn)
                new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + sn) const value_type(std::move(rhs._pbuf[sn])), rhs._pbuf[sn].~value_type();
          }
       }
       ~small_vec() {
          if constexpr (!std::is_trivially_copyable_v<value_type>)
-            for (std::size_t sn = _size; sn;) _pbuf[--sn].~value_type();
+            for (auto sn = _size; sn;) _pbuf[--sn].~value_type();
          if (RSN_UNLIKELY(_pbuf != reinterpret_cast<decltype(_pbuf)>(_buf.data())))
             delete[] reinterpret_cast<std::aligned_union_t<0, value_type> *>(const_cast<std::remove_cv_t<Obj> *>(_pbuf));
+      }
+      void reset(size_type res = 0) {
+         this->~small_vec(), new(this) small_vec(res);
       }
    public:
       small_vec &operator=(small_vec &&) = delete;
    public: // incremental building
-      void push_back(const value_type &obj) noexcept       { new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + _size++) const value_type(obj); }
-      RSN_INLINE void push_back(value_type &&obj) noexcept { new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + _size++) const value_type(std::move(obj)); }
+      void push_back(const value_type &obj)                { new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + _size++) value_type(obj); }
+      RSN_INLINE void push_back(value_type &&obj) noexcept { new (const_cast<std::remove_cv_t<Obj> *>(_pbuf) + _size++) value_type(std::move(obj)); }
    public: // access/iteration
       RSN_INLINE bool empty() const noexcept { return !size(); }
       RSN_INLINE size_type size() const noexcept { return _size; }
@@ -156,10 +159,6 @@ namespace rsn::lib {
       RSN_INLINE auto rend() const noexcept    { return const_reverse_iterator(begin()); }
       RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
       RSN_INLINE auto crend() const noexcept   { return rend(); }
-   public:
-      void reset(std::size_t res = 0) {
-         this->~small_vec(), new (this) small_vec(res);
-      }
    private: // internal representation
       pointer _pbuf;
       size_type _size = 0;
