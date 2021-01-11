@@ -57,6 +57,10 @@ auto g() { return rsn::lib::slice_ref(f6()); }
 
 int main() {
 
+   auto l = {1, 2, 3};
+   for (auto n: {1, 2, 3}) fprintf(stdout, "%d\n", n);
+   for (auto n: rsn::lib::slice_ref(l).drop_first()) fprintf(stdout, "%d\n", n);
+
    /*std::vector<int> a1{11, 12, 13, 21, 22, 33};
    const std::vector<int> a2{11, 12, 13, 21, 22, 33};
    rsn::lib::slice_ref<std::vector<int>::iterator> s1;

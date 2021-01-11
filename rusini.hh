@@ -122,11 +122,6 @@ namespace rsn::lib {
          : small_vec(rhs.size() + res) { for (auto &&obj: rhs) push_back(obj); }
       small_vec(size_type res, std::initializer_list<value_type> rhs)
          : small_vec(res) { for (auto &&obj: rhs) push_back(obj); }
-      RSN_INLINE void clear() noexcept {
-         if constexpr (!std::is_trivially_copyable_v<value_type>)
-            for (auto it = _end; it-- != _begin;) it->~value_type();
-         _end = _begin;
-      }
       RSN_INLINE void clear(size_type res)
          { this->~small_vec(), new(this) small_vec(res); }
       void clear(std::initializer_list<value_type> rhs, size_type res = 0)
@@ -146,6 +141,11 @@ namespace rsn::lib {
                new(const_cast<std::remove_cv_t<value_type> *>(dest)) value_type(std::move(*src)), src->~value_type();
          }
          rhs._end = rhs._begin;
+      }
+      RSN_INLINE void clear() noexcept {
+         if constexpr (!std::is_trivially_copyable_v<value_type>)
+            for (auto it = _end; it-- != _begin;) it->~value_type();
+         _end = _begin;
       }
       RSN_INLINE ~small_vec() {
          if constexpr (!std::is_trivially_copyable_v<value_type>)
@@ -247,30 +247,30 @@ namespace rsn::lib {
    public:
       RSN_INLINE auto begin() const noexcept { return _begin; }
       RSN_INLINE auto end() const noexcept { return _end; }
-      RSN_INLINE auto rbegin() const noexcept(noexcept(std::reverse_iterator(end()))) { return std::reverse_iterator(end()); }
-      RSN_INLINE auto rend() const noexcept(noexcept(std::reverse_iterator(begin()))) { return std::reverse_iterator(begin()); }
+      RSN_INLINE auto rbegin() const noexcept { return std::reverse_iterator(end()); }
+      RSN_INLINE auto rend() const noexcept { return std::reverse_iterator(begin()); }
       RSN_INLINE auto cbegin() const noexcept { return begin(); }
       RSN_INLINE auto cend() const noexcept { return end(); }
       RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
       RSN_INLINE auto crend() const noexcept { return rend(); }
    public: // convenience operations
-      RSN_INLINE reference head() const noexcept(noexcept(*_begin))
+      RSN_INLINE reference first() const noexcept(noexcept(*_begin))
          { return *_begin; }
-      RSN_INLINE reference tail() const noexcept(noexcept(*std::prev(end())))
+      RSN_INLINE reference last() const noexcept(noexcept(*std::prev(end())))
          { return *std::prev(end()); }
-      RSN_INLINE auto drop_head() const noexcept(noexcept(drop_head_ex(1)))
-         { return drop_head_ex(1); }
-      RSN_INLINE auto drop_tail() const noexcept(noexcept(drop_tail_ex(1)))
-         { return drop_tail_ex(1); }
-      RSN_INLINE slice_ref drop_head(size_type size) const noexcept(noexcept(_begin + (difference_type)size))
+      RSN_INLINE auto drop_first() const noexcept(noexcept(drop_first_ex()))
+         { return drop_first_ex(); }
+      RSN_INLINE auto drop_last() const noexcept(noexcept(drop_last_ex()))
+         { return drop_last_ex(); }
+      RSN_INLINE slice_ref drop_first(size_type size) const noexcept(noexcept(_begin + (difference_type)1))
          { return {_begin + (difference_type)size, end()}; }
-      RSN_INLINE slice_ref drop_tail(size_type size) const noexcept(noexcept(_end - (difference_type)size))
+      RSN_INLINE slice_ref drop_last(size_type size) const noexcept(noexcept(_end - (difference_type)1))
          { return {begin(), _end - (difference_type)size}; }
-      RSN_INLINE slice_ref drop_head_ex(size_type size) const noexcept(noexcept(std::next(begin(), size)))
+      RSN_INLINE slice_ref drop_first_ex(size_type size = 1) const noexcept(noexcept(std::next(begin())))
          { return {std::next(begin(), size), end()}; }
-      RSN_INLINE slice_ref drop_tail_ex(size_type size) const noexcept(noexcept(std::prev(end(), size)))
+      RSN_INLINE slice_ref drop_last_ex(size_type size = 1) const noexcept(noexcept(std::prev(end())))
          { return {begin(), std::prev(end(), size)}; }
-      RSN_INLINE auto reverse() const noexcept(noexcept(rbegin(), rend()))
+      RSN_INLINE auto reverse() const noexcept
          { return lib::slice_ref{rbegin(), rend()}; }
    private: // internal representation
       Begin _begin; End _end;
