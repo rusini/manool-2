@@ -189,9 +189,9 @@ namespace rsn::lib {
       std::array<std::aligned_union_t<0, value_type>, MinRes> buf;
    };
 
-   // Non-owning References to a Range of Elements /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+   // Non-owning References to a Range of Values ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-   namespace aux {
+   namespace aux { // ADL for begin/end
       using std::begin, std::end;
       template<typename Cont> RSN_INLINE static auto _begin(Cont &cont) noexcept(noexcept(begin(cont))) { return begin(cont); }
       template<typename Cont> RSN_INLINE static auto _end(Cont &cont) noexcept(noexcept(end(cont))) { return end(cont); }
@@ -240,15 +240,15 @@ namespace rsn::lib {
    public: // container-like access/iteration
       RSN_INLINE bool empty() const noexcept(noexcept(_end == _begin)) // gcc bug #52869 prior to gcc-9
          { return _end == _begin; }
-      RSN_INLINE size_type size() const noexcept(noexcept(end() - begin()))
-         { return end() - begin(); }
-      RSN_INLINE size_type size_ex() const noexcept(noexcept(std::distance(begin(), end())))
+      RSN_INLINE size_type size() const noexcept(noexcept(_end - _begin))
+         { return _end - _begin; }
+      RSN_INLINE size_type size_ex() const noexcept(noexcept(std::distance(begin(), end()))) // potentially ex(pensive)
          { return std::distance(begin(), end()); }
    public:
       RSN_INLINE auto begin() const noexcept { return _begin; }
       RSN_INLINE auto end() const noexcept { return _end; }
-      RSN_INLINE auto rbegin() const noexcept { return std::reverse_iterator(end()); }
-      RSN_INLINE auto rend() const noexcept { return std::reverse_iterator(begin()); }
+      RSN_INLINE auto rbegin() const noexcept(noexcept(std::reverse_iterator(end()))) { return std::reverse_iterator(end()); }
+      RSN_INLINE auto rend() const noexcept(noexcept(std::reverse_iterator(begin()))) { return std::reverse_iterator(begin()); }
       RSN_INLINE auto cbegin() const noexcept { return begin(); }
       RSN_INLINE auto cend() const noexcept { return end(); }
       RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
@@ -262,14 +262,14 @@ namespace rsn::lib {
          { return drop_head_ex(1); }
       RSN_INLINE auto drop_tail() const noexcept(noexcept(drop_tail_ex(1)))
          { return drop_tail_ex(1); }
-      RSN_INLINE auto drop_head(difference_type size) const noexcept(noexcept(lib::slice_ref{begin() + size, end()}))
-         { return lib::slice_ref{begin() + size, end()}; }
-      RSN_INLINE auto drop_tail(difference_type size) const noexcept(noexcept(lib::slice_ref{begin(), end() - size}))
-         { return lib::slice_ref{begin(), end() - size}; }
-      RSN_INLINE auto drop_head_ex(difference_type size) const noexcept(noexcept(lib::slice_ref{std::next(begin(), size), end()}))
-         { return lib::slice_ref{std::next(begin(), size), end()}; }
-      RSN_INLINE auto drop_tail_ex(difference_type size) const noexcept(noexcept(lib::slice_ref{begin(), std::prev(end(), size)}))
-         { return lib::slice_ref{begin(), std::prev(end(), size)}; }
+      RSN_INLINE slice_ref drop_head(size_type size) const noexcept(noexcept(_begin + (difference_type)size))
+         { return {_begin + (difference_type)size, end()}; }
+      RSN_INLINE slice_ref drop_tail(size_type size) const noexcept(noexcept(_end - (difference_type)size))
+         { return {begin(), _end - (difference_type)size}; }
+      RSN_INLINE slice_ref drop_head_ex(size_type size) const noexcept(noexcept(std::next(begin(), size)))
+         { return {std::next(begin(), size), end()}; }
+      RSN_INLINE slice_ref drop_tail_ex(size_type size) const noexcept(noexcept(std::prev(end(), size)))
+         { return {begin(), std::prev(end(), size)}; }
       RSN_INLINE auto reverse() const noexcept(noexcept(lib::slice_ref{rbegin(), rend()}))
          { return lib::slice_ref{rbegin(), rend()}; }
    private: // internal representation
@@ -277,8 +277,8 @@ namespace rsn::lib {
       template<typename, typename> friend class slice_ref;
    };
    // Deduction guides
-   template<typename Begin, typename End> slice_ref(Begin, End) -> slice_ref<Begin, End>;
    template<typename Rhs> slice_ref(Rhs &&) -> slice_ref<decltype(aux::_begin(std::declval<Rhs &>())), decltype(aux::_end(std::declval<Rhs &>()))>;
+   template<typename Begin, typename End> slice_ref(Begin, End) -> slice_ref<Begin, End>;
    // Non-member functions
    template<typename Begin, typename End = Begin>
    RSN_INLINE inline void swap(slice_ref<Begin, End> &lhs, slice_ref<Begin, End> &rhs) noexcept

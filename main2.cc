@@ -57,7 +57,8 @@ int main() {
    rsn::lib::slice_ref s2 = v2;
    rsn::lib::slice_ref ss1 = a1;
    rsn::lib::slice_ref ss2 = a2;
-   ss1 = ss2;
+   ss2 = ss1;
+   s1 = {a1 + 1, a1 + 10};
 
    /*std::vector<int> a1{11, 12, 13, 21, 22, 33};
    const std::vector<int> a2{11, 12, 13, 21, 22, 33};
