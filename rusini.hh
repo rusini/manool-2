@@ -99,6 +99,11 @@ namespace rsn::lib {
       * The capacity can be conveniently reserved on construction (instead of specifying an initial size).
    */
 
+   namespace aux {
+      using std::size;
+      template<typename Cont> RSN_INLINE static auto _size(Cont &cont) noexcept(noexcept(size(cont))) { return size(cont); }
+   }
+
    template<typename Obj, std::size_t MinRes = /*up to 2 cache-lines*/ (128 - sizeof(Obj *) - sizeof(std::size_t)) / sizeof(Obj)>
    class small_vec { // lightweight analog of llvm::SmallVector
    public: // typedefs to imitate standard containers
@@ -118,10 +123,20 @@ namespace rsn::lib {
          : _begin(reinterpret_cast<decltype(_begin)>(buf.data())), _end(_begin) {}
       RSN_INLINE explicit small_vec(size_type res)
          : _begin(reinterpret_cast<decltype(_begin)>(RSN_LIKELY(res <= MinRes) ? buf.data() : new std::aligned_union_t<0, value_type>[res])), _end(_begin) {}
-      small_vec(std::initializer_list<value_type> rhs, size_type res = 0)
-         : small_vec(rhs.size() + res) { for (auto &&obj: rhs) push_back(obj); }
+   public:
       small_vec(size_type res, std::initializer_list<value_type> rhs)
          : small_vec(res) { for (auto &&obj: rhs) push_back(obj); }
+      template<typename Rhs> small_vec(size_type res, Rhs &rhs)
+         : small_vec(res) { for (auto &&obj: rhs) emplace_back(obj); }
+      template<typename Rhs> small_vec(size_type res, Rhs &&rhs)
+         : small_vec(res) { for (auto &&obj: rhs) emplace_back(std::move(obj)); }
+      RSN_INLINE small_vec(std::initializer_list<value_type> rhs, size_type res = 0)
+         : small_vec(rhs.size() + res, rhs) {}
+      template<typename Rhs> RSN_INLINE small_vec(Rhs &rhs, std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, size_type> res = 0)
+         : small_vec((size_type)aux::_size(rhs) + res, rhs) {}
+      template<typename Rhs> RSN_INLINE small_vec(Rhs &&rhs, std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, size_type> res = 0):
+         small_vec((size_type)aux::_size(rhs) + res, std::move(rhs)) {}
+   public:
       RSN_INLINE void clear(size_type res)
          { this->~small_vec(), new(this) small_vec(res); }
       void clear(std::initializer_list<value_type> rhs, size_type res = 0)
@@ -129,57 +144,65 @@ namespace rsn::lib {
       void clear(size_type res, std::initializer_list<value_type> rhs)
          { this->~small_vec(), new(this) small_vec(res, rhs); }
    public:
-      RSN_INLINE small_vec(small_vec &&rhs)
-      noexcept(noexcept(new(nullptr) value_type(std::declval<value_type &&>()))) {
+      RSN_INLINE small_vec(small_vec &&rhs) noexcept {
          if (RSN_UNLIKELY(rhs._begin != reinterpret_cast<decltype(rhs._begin)>(rhs.buf.data())))
             _begin = rhs._begin, _end = rhs._end, rhs._begin = reinterpret_cast<decltype(rhs._begin)>(rhs.buf.data());
          else {
             _end = (_begin = reinterpret_cast<decltype(_begin)>(buf.data())) + rhs.size();
             if constexpr (std::is_trivially_copyable_v<value_type>)
                std::memcpy(&buf, &rhs.buf, sizeof buf);
-            else for (auto dest = _begin, src = rhs._begin; dest != _end; ++dest, ++src)
+            else for (auto dest = _begin, end = _end, src = rhs._begin; dest != end; ++dest, ++src)
                new(const_cast<std::remove_cv_t<value_type> *>(dest)) value_type(std::move(*src)), src->~value_type();
          }
          rhs._end = rhs._begin;
       }
       RSN_INLINE void clear() noexcept {
          if constexpr (!std::is_trivially_copyable_v<value_type>)
-            for (auto it = _end; it-- != _begin;) it->~value_type();
+            for (auto dest = _end, end = _begin; dest-- != end;) dest->~value_type();
          _end = _begin;
       }
       RSN_INLINE ~small_vec() {
          if constexpr (!std::is_trivially_copyable_v<value_type>)
-            for (auto it = _end; it-- != _begin;) it->~value_type();
+            for (auto dest = _end, end = _begin; dest-- != end;) dest->~value_type();
          if (RSN_UNLIKELY(_begin != reinterpret_cast<decltype(_begin)>(buf.data())))
             delete[] reinterpret_cast<std::aligned_union_t<0, value_type> *>(const_cast<std::remove_cv_t<Obj> *>(_begin));
       }
    public: // incremental building
-      RSN_INLINE void push_back(const value_type &rhs) noexcept(noexcept(new(nullptr) value_type(rhs)))
-         { new(const_cast<std::remove_cv_t<value_type> *>(_end++)) value_type(rhs); }
-      RSN_INLINE void push_back(value_type &&rhs) noexcept(noexcept(new(nullptr) value_type(std::move(rhs))))
-         { new(const_cast<std::remove_cv_t<value_type> *>(_end++)) value_type(std::move(rhs)); }
       template<typename ...Rhs> RSN_INLINE reference emplace_back(Rhs &&...rhs) noexcept(noexcept(new(nullptr) value_type(std::forward<Rhs>(rhs)...)))
-         { return *new(const_cast<std::remove_cv_t<value_type> *>(_end++)) value_type(std::forward<Rhs>(rhs)...); }
+         { return new(const_cast<std::remove_cv_t<value_type> *>(_end)) value_type(std::forward<Rhs>(rhs)...), *_end++; }
+      RSN_INLINE void push_back(const value_type &rhs) noexcept(noexcept(emplace_back(rhs)))
+         { emplace_back(rhs); }
+      RSN_INLINE void push_back(value_type &&rhs) noexcept
+         { new(const_cast<std::remove_cv_t<value_type> *>(_end++)) value_type(std::move(rhs)); }
       RSN_INLINE void pop_back() noexcept
          { (--_end)->~value_type(); }
    public: // access/iteration
       RSN_INLINE bool empty() const noexcept { return end() == begin(); }
       RSN_INLINE size_type size() const noexcept { return end() - begin(); }
-      size_type capacity() const = delete; // unaccessible in case of small_vec
-      void reserve() = delete;
+      size_type capacity() const = delete; // inaccessible in case of small_vec
+      void reserve(size_type) = delete;    // ditto
+      void shrink_to_fit() = delete;       // ditto
       RSN_INLINE auto data() noexcept       { return begin(); }
       RSN_INLINE auto data() const noexcept { return begin(); }
       RSN_INLINE auto &operator[](size_type sn) noexcept       { return data()[sn]; }
       RSN_INLINE auto &operator[](size_type sn) const noexcept { return data()[sn]; }
+      RSN_INLINE auto &at(size_type sn)       { return check_range(sn), (*this)[sn]; }
+      RSN_INLINE auto &at(size_type sn) const { return check_range(sn), (*this)[sn]; }
+      RSN_INLINE auto front() noexcept       { return *begin(); }
+      RSN_INLINE auto front() const noexcept { return *begin(); }
+      RSN_INLINE auto back() noexcept       { return *std::prev(end()); }
+      RSN_INLINE auto back() const noexcept { return *std::prev(end()); }
+   private:
+      RSN_INLINE void check_range(size_type sn) const { if (RSN_UNLIKELY(sn >= size())) throw std::out_of_range{"::rsn::lib::small_vec::at(size_type)"}; }
    public:
       RSN_INLINE iterator       begin() noexcept       { return _begin; }
       RSN_INLINE const_iterator begin() const noexcept { return _begin; }
       RSN_INLINE iterator       end() noexcept       { return _end; }
       RSN_INLINE const_iterator end() const noexcept { return _end; }
-      RSN_INLINE auto rbegin() noexcept       { return reverse_iterator(end()); }
-      RSN_INLINE auto rbegin() const noexcept { return const_reverse_iterator(end()); }
-      RSN_INLINE auto rend() noexcept       { return reverse_iterator(begin()); }
-      RSN_INLINE auto rend() const noexcept { return const_reverse_iterator(begin()); }
+      RSN_INLINE auto rbegin() noexcept       { return reverse_iterator{end()}; }
+      RSN_INLINE auto rbegin() const noexcept { return const_reverse_iterator{end()}; }
+      RSN_INLINE auto rend() noexcept       { return reverse_iterator{begin()}; }
+      RSN_INLINE auto rend() const noexcept { return const_reverse_iterator{begin()}; }
       RSN_INLINE auto cbegin() const noexcept  { return begin(); }
       RSN_INLINE auto cend() const noexcept    { return end(); }
       RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
