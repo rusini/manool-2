@@ -46,19 +46,16 @@ rsn::lib::slice_ref<std::vector<int>::const_iterator> f4() { return {}; }
 const rsn::lib::slice_ref<std::vector<int>::iterator> f5() { return {}; }
 const rsn::lib::slice_ref<std::vector<int>::const_iterator> f6() { return {}; }
 
-void ff(rsn::lib::slice_ref<std::vector<int>::iterator>) {}
+std::vector<int> v1;
+const std::vector<int> v2;
+rsn::lib::slice_ref<std::vector<int>::iterator> v3;
+rsn::lib::slice_ref<std::vector<int>::const_iterator> v4;
+const rsn::lib::slice_ref<std::vector<int>::iterator> v5;
+const rsn::lib::slice_ref<std::vector<int>::const_iterator> v6;
+
+auto g() { return rsn::lib::slice_ref(f6()); }
 
 int main() {
-   std::vector<int> v1{11, 12, 13, 21, 22, 33};
-   const std::vector<int> v2{11, 12, 13, 21, 22, 33};
-   int a1[]{11, 12, 13, 21, 22, 33};
-   const int a2[]{11, 12, 13, 21, 22, 33};
-   rsn::lib::slice_ref s1 = v1;
-   rsn::lib::slice_ref s2 = v2;
-   rsn::lib::slice_ref ss1 = a1;
-   rsn::lib::slice_ref ss2 = a2;
-   ss2 = ss1;
-   s1 = {a1 + 1, a1 + 10};
 
    /*std::vector<int> a1{11, 12, 13, 21, 22, 33};
    const std::vector<int> a2{11, 12, 13, 21, 22, 33};

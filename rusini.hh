@@ -270,7 +270,7 @@ namespace rsn::lib {
          { return {std::next(begin(), size), end()}; }
       RSN_INLINE slice_ref drop_tail_ex(size_type size) const noexcept(noexcept(std::prev(end(), size)))
          { return {begin(), std::prev(end(), size)}; }
-      RSN_INLINE auto reverse() const noexcept(noexcept(lib::slice_ref{rbegin(), rend()}))
+      RSN_INLINE auto reverse() const noexcept(noexcept(rbegin(), rend()))
          { return lib::slice_ref{rbegin(), rend()}; }
    private: // internal representation
       Begin _begin; End _end;
