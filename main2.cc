@@ -58,7 +58,13 @@ auto g() { return rsn::lib::slice_ref(f6()); }
 int main() {
 
    std::vector<long> v{1, 2, 3};
-   rsn::lib::small_vec s{10, 20, 30};
+   rsn::lib::small_vec<int> s = v;
+   for (auto &&n: s) std::printf("%d\n", n);
+   s.clear({10, 20, 30});
+   for (auto &&n: s) std::printf("%d\n", n);
+   s.clear(10);
+   for (auto &&n: s) std::printf("%d\n", n);
+   s.clear(v);
    for (auto &&n: s) std::printf("%d\n", n);
 
    /*std::vector<int> a1{11, 12, 13, 21, 22, 33};
