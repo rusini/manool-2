@@ -95,12 +95,6 @@ namespace rsn::lib {
 
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-   /* The interface of small_vec is modelled after std::vector, with the following differences:
-      * Capacity may be reserved directly inside the small_vec object instead of heap, up to a user-specified static limit.
-      * The capacity is not tracked; it cannot be queried and cannot be altered without clearing elements.
-      * The capacity can be conveniently reserved on construction (instead of specifying an initial size).
-   */
-
    namespace aux {
       using std::size;
       template<typename Cont> RSN_INLINE static auto _size(Cont &cont) noexcept(noexcept(size(cont))) { return size(cont); }
@@ -147,10 +141,13 @@ namespace rsn::lib {
             delete[] reinterpret_cast<std::aligned_union_t<0, value_type> *>(_begin);
       }
       RSN_INLINE small_vec &operator=(const small_vec &rhs) {
-         clear(rhs);
+         clear(rhs); return *this;
       }
       RSN_INLINE small_vec &operator=(small_vec &&rhs) noexcept {
-         clear(std::move(rhs));
+         clear(std::move(rhs)); return *this;
+      }
+      RSN_INLINE void swap(small_vec &rhs) noexcept {
+         std::swap(*this, rhs); // the standard version of swap is just fine
       }
    public: // miscellaneous construction operations
       RSN_INLINE explicit small_vec(size_type res)
@@ -182,11 +179,11 @@ namespace rsn::lib {
       template<typename Rhs> RSN_INLINE void clear(size_type res, Rhs &&rhs)
          { this->~small_vec(); try { new(this) small_vec(res, std::move(rhs)); } catch (...) { new(this) small_vec; throw; } }
       RSN_INLINE void clear(std::initializer_list<value_type> rhs, size_type res = 0)
-         { this->~small_vec(); try { new(this) small_vec(res, rhs); } catch (...) { new(this) small_vec; throw; } }
+         { this->~small_vec(); try { new(this) small_vec(rhs, res); } catch (...) { new(this) small_vec; throw; } }
       template<typename Rhs> RSN_INLINE void clear(Rhs &rhs, std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, size_type> res = 0)
-         { this->~small_vec(); try { new(this) small_vec(res, rhs); } catch (...) { new(this) small_vec; throw; } }
+         { this->~small_vec(); try { new(this) small_vec(rhs, res); } catch (...) { new(this) small_vec; throw; } }
       template<typename Rhs> RSN_INLINE void clear(Rhs &&rhs, std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, size_type> res = 0)
-         { this->~small_vec(); try { new(this) small_vec(res, std::move(rhs)); } catch (...) { new(this) small_vec; throw; } }
+         { this->~small_vec(); try { new(this) small_vec(std::move(rhs), res); } catch (...) { new(this) small_vec; throw; } }
    public: // incremental building
       template<typename ...Rhs> RSN_INLINE reference emplace_back(Rhs &&...rhs) noexcept(noexcept(new(nullptr) value_type(std::forward<Rhs>(rhs)...)))
          { return new(_end) value_type(std::forward<Rhs>(rhs)...), *_end++; }
@@ -199,9 +196,6 @@ namespace rsn::lib {
    public: // access/iteration
       RSN_INLINE bool empty() const noexcept { return end() == begin(); }
       RSN_INLINE size_type size() const noexcept { return end() - begin(); }
-      size_type capacity() const = delete; // inaccessible in case of small_vec
-      void reserve(size_type) = delete;    // ditto
-      void shrink_to_fit() = delete;       // ditto
       RSN_INLINE auto data() noexcept       { return begin(); }
       RSN_INLINE auto data() const noexcept { return begin(); }
       RSN_INLINE auto &operator[](size_type sn) noexcept       { return data()[sn]; }
@@ -212,6 +206,9 @@ namespace rsn::lib {
       RSN_INLINE auto front() const noexcept { return *begin(); }
       RSN_INLINE auto back() noexcept       { return *std::prev(end()); }
       RSN_INLINE auto back() const noexcept { return *std::prev(end()); }
+   private:
+      RSN_INLINE void check_range(size_type sn) const
+         { if (RSN_UNLIKELY(sn >= size())) throw std::out_of_range{"::rsn::lib::small_vec::at(std::size_t)"}; }
    public:
       RSN_INLINE iterator       begin() noexcept       { return _begin; }
       RSN_INLINE const_iterator begin() const noexcept { return _begin; }
@@ -225,25 +222,28 @@ namespace rsn::lib {
       RSN_INLINE auto cend() const noexcept    { return end(); }
       RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
       RSN_INLINE auto crend() const noexcept   { return rend(); }
-   private:
-      RSN_INLINE void check_range(size_type sn) const
-         { if (RSN_UNLIKELY(sn >= size())) throw std::out_of_range{"::rsn::lib::small_vec::at(std::size_t)"}; }
    private: // internal representation
       pointer _begin, _end;
       std::array<std::aligned_union_t<0, value_type>, MinRes> buf;
+   public: // not applicable in case of small_vec
+      size_type capacity() const = delete;
+      void reserve(size_type) = delete;
+      void shrink_to_fit() = delete;
    };
    // Non-member functions
-   template<typename Obj, std::size_t MinRes> inline bool operator==(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
+   template<typename Obj, std::size_t MinRes> RSN_INLINE inline void swap(small_vec<Obj, MinRes> &lhs, small_vec<Obj, MinRes> &rhs) noexcept // for completeness
+      { lhs.swap(rhs); }
+   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator==(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
       { return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin()); }
-   template<typename Obj, std::size_t MinRes> inline bool operator< (const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
+   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator< (const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
       { return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end()); }
-   template<typename Obj, std::size_t MinRes> inline bool operator!=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
+   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator!=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
       { return std::rel_ops::operator!=(lhs, rhs); }
-   template<typename Obj, std::size_t MinRes> inline bool operator> (const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
+   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator> (const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
       { return std::rel_ops::operator> (lhs, rhs); }
-   template<typename Obj, std::size_t MinRes> inline bool operator<=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
+   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator<=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
       { return std::rel_ops::operator<=(lhs, rhs); }
-   template<typename Obj, std::size_t MinRes> inline bool operator>=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
+   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator>=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
       { return std::rel_ops::operator>=(lhs, rhs); }
 
    // Non-owning References to a Range of Values ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
