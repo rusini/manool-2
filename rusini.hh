@@ -14,13 +14,14 @@
 # ifndef RSN_INCLUDED_RUSINI
 # define RSN_INCLUDED_RUSINI
 
-# include <algorithm> // equal, lexicographical_compare
-# include <iterator>
-# include <type_traits>
-# include <utility>
-# include <vector>
+# include <algorithm>   // equal, lexicographical_compare
 # include <array>
-# include <cstring>
+# include <cstdlib>     // ptrdiff_t, size_t
+# include <cstring>     // memcpy
+# include <initializer_list>
+# include <iterator>    // begin, const_reverse_iterator, end, size, reverse_iterator
+# include <type_traits> // aligned_union_t, enable_if_t, is_base_of_v, is_trivially_copyable_v, remove_cv_t
+# include <utility>     // forward, move
 
 # include "rusini0.hh"
 
@@ -105,7 +106,7 @@ namespace rsn::lib {
    template<typename Obj, std::size_t MinRes = /*up to 2 cache-lines*/ (128 - sizeof(Obj *) - sizeof(std::size_t)) / sizeof(Obj)>
    class small_vec { // lightweight analog of llvm::SmallVector
       static_assert(std::is_same_v<Obj, std::remove_cv_t<Obj>>); // no const/volatile like for std::containers, which makes sense
-   public: // typedefs to imitate standard containers
+   public: // typedefs to imitate std::containers
       typedef Obj              value_type;
       typedef value_type       *pointer, &reference;
       typedef const value_type *const_pointer, &const_reference;

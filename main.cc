@@ -4,57 +4,65 @@
 
 
 namespace rsn::opt {
+   using namespace lib;
 
    void update_cfg_preds(proc *pr) {
-      for (auto bb: all(pr))
-         bb->temp.preds.clear();
-      for (auto bb: all(pr)) for (auto targets: bb->tail()->targets())
-         (*targets)->temp.preds.insert(bb);
+      for (auto bb: all(pr)) bb->temp.preds.clear();
+      for (auto bb: all(pr)) for (auto &target: bb->back()->targets())
+      if (target->temp.preds.empty() || target->temp.preds.back() != bb)
+         target->temp.preds.push_back(bb);
+      for (auto bb: all(pr)) bb->temp.preds.shrink_to_fit();
    }
 
-   bool transform_cpropag(proc *pr) {
-      static constexpr auto
-      traverse = [](auto traverse, insn *in, const smart_ptr<vreg> &vr, bool skip = {}) noexcept->smart_ptr<operand>{
-         for (auto _in: skip ? rev_after(in) : rev_from(in)) {
+   bool transform_cpropag(proc *pr) { // constant propagation (from mov and beq insns)
+      using lib::is, lib::as;
+      static const auto
+      traverse = [](auto traverse, insn *in, const smart_ptr<vreg> &vr) noexcept->smart_ptr<operand>{
+         for (auto _in = in->prev(); _in; _in = _in->prev()) {
             if (RSN_UNLIKELY(_in->temp.visited)) return vr;
             _in->temp.visited = true;
-            if (RSN_UNLIKELY(is<insn_mov>(_in)) && RSN_UNLIKELY(as<insn_mov>(_in)->dest == vr) && is<imm_val>(as<insn_mov>(_in)->src))
-               return as<insn_mov>(_in)->src;
-            for (auto output: _in->outputs()) if (RSN_UNLIKELY(*output == vr))
+            if (RSN_UNLIKELY(is<insn_mov>(_in)) && RSN_UNLIKELY(as<insn_mov>(_in)->dest() == vr) && is<imm_val>(as<insn_mov>(_in)->src()))
+               return as<insn_mov>(_in)->src();
+            for (auto &output: _in->outputs()) if (RSN_UNLIKELY(output == vr))
                return vr;
          }
-         if (in->owner()->temp.preds.empty()) return vr;
-         auto res = traverse(traverse, (*in->owner()->temp.preds.begin())->tail(), vr);
-         if (is<abs_imm>(res))
-         for (auto it = in->owner()->temp.preds.begin(); ++it != in->owner()->temp.preds.end();) {
-            auto temp = traverse(traverse, (*it)->tail(), smart_ptr<vreg>(vr));
-            if (!is<abs_imm>(temp) || as<abs_imm>(temp)->value != as<abs_imm>(res)->value)
+         if (RSN_UNLIKELY(in->owner()->temp.preds.empty())) return vr;
+         static const auto
+         _traverse = [traverse, in, &vr](insn *_in) noexcept{
+            return RSN_UNLIKELY(is<insn_br>(_in)) && RSN_UNLIKELY(as<insn_br>(_in)->op == insn_br::_beq) && RSN_UNLIKELY(as<insn_br>(_in)->lhs() == vr) &&
+               is<imm_val>(as<insn_br>(_in)->rhs()) && as<insn_br>(_in)->dest2() != in->owner() ? as<insn_br>(_in)->rhs()) : traverse(traverse, _in, vr);
+         };
+         auto res = _traverse(range_ref(in->owner()->temp.preds).first()->back());
+         if (RSN_UNLIKELY(is<abs_imm>(res)))
+         for (auto bb: range_ref(in->owner()->temp.preds).drop_first()) {
+            auto _res = _traverse(bb->back());
+            if (!is<abs_imm>(_res) || as<abs_imm>(_res)->value != as<abs_imm>(res)->value)
                return vr;
          } else
-         if (is<proc>(res) || is<data>(res))
-         for (auto it = in->owner()->temp.preds.begin(); ++it != in->owner()->temp.preds.end();) {
-            auto temp = traverse(traverse, (*it)->tail(), smart_ptr<vreg>(vr));
-            if (!is<rel_imm>(temp) || as<rel_imm>(temp)->id != as<rel_imm>(res)->id)
+         if (RSN_UNLIKELY(is<proc>(res) || is<data>(res)))
+         for (auto bb: range_ref(in->owner()->temp.preds).drop_first()) {
+            auto _res = _traverse(bb->back());
+            if (!is<rel_imm>(_res) || as<rel_imm>(_res)->id != as<rel_imm>(res)->id)
                return vr;
          } else
-         if (is<rel_imm>(res))
-         for (auto it = in->owner()->temp.preds.begin(); ++it != in->owner()->temp.preds.end();) {
-            auto temp = traverse(traverse, (*it)->tail(), smart_ptr<vreg>(vr));
-            if (!is<rel_imm>(temp) || as<rel_imm>(temp)->id != as<rel_imm>(res)->id)
+         if (RSN_UNLIKELY(is<rel_imm>(res)))
+         for (auto bb: range_ref(in->owner()->temp.preds).drop_first()) {
+            auto _res = _traverse(bb->back());
+            if (!is<rel_imm>(_res) || as<rel_imm>(_res)->id != as<rel_imm>(res)->id)
                return vr;
-            res = std::move(temp);
+            res = std::move(_res);
          } else
             RSN_UNREACHABLE();
-         return std::move(res);
+         return res;
       };
       bool changed{};
       for (;;) {
          bool _changed{};
          for (auto bb: all(pr)) for (auto in: all(bb))
-         for (auto input: in->inputs()) if (is<vreg>(*input)) {
+         for (auto &input: in->inputs()) if (is<vreg>(input)) {
             for (auto bb: all(pr)) for (auto in: all(bb)) in->temp.visited = {};
-            auto res = traverse(traverse, in, as_smart<vreg>(*input), true);
-            _changed |= res != *input, *input = std::move(res);
+            auto res = traverse(traverse, in, lib::as_smart<vreg>(input));
+            _changed |= res != input, input = std::move(res);
          }
          changed |= _changed;
          if (!RSN_LIKELY(_changed)) break;

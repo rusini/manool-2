@@ -43,12 +43,12 @@ namespace rsn::opt {
          std::vector<lib::smart_ptr<vreg>> &&params ) noexcept
          : insn(loc), _outputs(std::move(params)) {
          _outputs.shrink_to_fit();
-         init(_outputs);
+         insn::_outputs = _outputs; insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_entry( Loc loc,
          const declype(_outputs) &outputs )
          : insn(loc), _outputs(outputs) {
-         init(_outputs);
+         insn::_outputs = _outputs; insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -77,12 +77,12 @@ namespace rsn::opt {
          std::vector<lib::smart_ptr<vreg>> &&results ) noexcept
          : insn(loc), _inputs(std::move(results)) {
          _inputs.shrink_to_fit();
-         init(_inputs);
+         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_ret( Loc loc,
          const declype(_inputs) &inputs )
          : insn(loc), _inputs(inputs) {
-         init(_inputs);
+         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -119,12 +119,12 @@ namespace rsn::opt {
          : insn(loc), _outputs(std::move(results)), _inputs(std::move(params)) {
          _inputs.push_back(std::move(dest));
          _outputs.shrink_to_fit(), _inputs.shrink_to_fit();
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_call( Loc loc,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs )
          : insn(loc), _outputs(outputs), _inputs(inputs) {
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -155,12 +155,12 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_mov( Loc loc,
          lib::smart_ptr<vreg> &&dest, lib::smart_ptr<operand> &&src ) noexcept
          : insn(loc), _outputs{std::move(dest)}, _inputs{std::move(src)} {
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_mov( Loc loc,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
          : insn(loc), _outputs(outputs), _inputs(inputs) {
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -191,12 +191,12 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_load( Loc loc,
          lib::smart_ptr<vreg> &&dest, lib::smart_ptr<operand> &&src ) noexcept
          : insn(loc), _outputs{std::move(dest)}, _inputs{std::move(src)} {
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_load( Loc loc,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
          : insn(loc), _outputs(outputs), _inputs(inputs) {
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -226,12 +226,12 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_store( Loc loc,
          lib::smart_ptr<operand> &&src, lib::smart_ptr<operand> &&dest ) noexcept
          : insn(loc), _inputs{std::move(src), std::move(dest)} {
-         init(_inputs);
+         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_store( Loc loc,
          const declype(_inputs) &inputs ) noexcept
          : insn(loc), _inputs(inputs) {
-         init(_inputs);
+         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -279,12 +279,12 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
          lib::smart_ptr<vreg> &&dest, lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs ) noexcept
          : insn(loc), op(op), _outputs{std::move(dest)}, _inputs{std::move(lhs)), rhs(std::move(rhs)} {
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
          : insn(loc), op(op), _outputs(outputs), _inputs(inputs) {
-         init(_outputs, _inputs);
+         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -317,11 +317,12 @@ namespace rsn::opt {
          bblock *&&dest ) noexcept
          : insn(loc), _targets{std::move(dest)} {
          init(_targets);
+         insn::_targets = _targets; insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_jmp( Loc loc,
          const declype(_targets) &targets ) noexcept
          : insn(loc), _targets(targets) {
-         init(_targets);
+         insn::_targets = _targets; insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -370,12 +371,12 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
          lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs, bblock *&&dest1, bblock *&&dest2 )
          : insn(loc), op(op), _inputs{std::move(lhs), std::move(rhs)}, _targets{std::move(dest1)), rhs(std::move(dest2)} {
-         init(_inputs, _targets);
+         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
          const declype(_inputs) &inputs, const declype(_targets) &targets ) noexcept
          : insn(loc), op(op), _inputs(inputs), _targets(targets) {
-         init(_inputs, _targets);
+         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -412,12 +413,12 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_switch_br( Loc loc,
          lib::smart_ptr<operand> &&index, std::vector<bblock *> &&dests )
          : insn(loc), _inputs{std::move(index)}, _targets(std::move(dests)) {
-         init(_inputs, _targets);
+         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_switch_br( Loc loc,
          const declype(_inputs) &inputs, const declype(_targets) &targets ) noexcept
          : insn(loc), _inputs(inputs), _targets(targets) {
-         init(_inputs, _targets);
+         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
@@ -437,11 +438,11 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_undefined(Loc loc) noexcept
          : insn(loc) {
-         init();
+         insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
       template<typename Loc> RSN_INLINE explicit insn_undefined(Loc loc) noexcept
          : insn(loc) {
-         init();
+         insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
    public:
