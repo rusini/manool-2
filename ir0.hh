@@ -14,11 +14,9 @@
 # ifndef RSN_INCLUDED_IR0
 # define RSN_INCLUDED_IR0
 
-# include <array>
 # include <type_traits> // enable_if_t, is_base_of_v
 # include <utility>     // pair
 # include <vector>
-# include <unordered_set>
 
 # if RSN_USE_DEBUG
    # include <cstdio> // fprintf, fputc, fputs, stderr
@@ -193,11 +191,10 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
    public: // querying contents
-      RSN_INLINE auto head () const noexcept { return _head; }
-      RSN_INLINE auto tail () const noexcept { return _tail; }
-      RSN_INLINE auto count() const noexcept { return _count; }
+      RSN_INLINE auto head() const noexcept { return _head; }
+      RSN_INLINE auto rear() const noexcept { return _rear; }
    private: // internal representation
-      bblock *_head{}, *_tail{}; long _count{}; friend bblock;
+      bblock *_head{}, *_rear{}; friend bblock;
    private: // implementation helpers
       RSN_INLINE explicit proc(decltype(id) &&id): rel_imm{std::move(id)} {}
       ~proc() override;
@@ -209,6 +206,12 @@ namespace rsn::opt {
       void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%016llX%016llX", sn, id.second, id.first); }
       friend struct log;
    # endif // # if RSN_USE_DEBUG
+   public: // embedded temporary data
+      struct {
+      # define RSN_OPT_TEMP_PROC
+      # include "opt-temp-tcc"
+      # undef RSN_OPT_TEMP_PROC
+      } temp;
    };
 
    class data final: public rel_imm { // static initialized-data block
@@ -235,19 +238,11 @@ namespace rsn::opt {
 
    class vreg final: public operand { // virtual register
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(proc *owner) { return lib::smart_ptr<vreg>::make(owner); }
-   public: // querying owner
-      RSN_INLINE auto owner() const noexcept { return _owner; }
-   private: // internal representation
-      proc *const _owner;
+      RSN_INLINE RSN_NODISCARD static auto make() { return lib::smart_ptr<vreg>::make(); }
    private: // implementation helpers
       RSN_INLINE explicit vreg(proc *owner) noexcept: _owner(owner) {}
       ~vreg() override = default;
       template<typename> friend class lib::smart_ptr;
-   public: // embedded temporary data
-      struct {
-         lib::smart_ptr<vreg> vr;
-      } temp;
    # if RSN_USE_DEBUG
    public:
       void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg ", sn), log << '(' << owner() << ')', std::fputs("\n\n", stderr); }
@@ -255,41 +250,40 @@ namespace rsn::opt {
       void dump_ref() const noexcept override { std::fprintf(stderr, "R%u", sn); }
       friend struct log;
    # endif // # if RSN_USE_DEBUG
+   public: // embedded temporary data
+      struct {
+      # define RSN_OPT_TEMP_VREG
+      # include "opt-temp-tcc"
+      # undef RSN_OPT_TEMP_VREG
+      } temp;
    };
 
    class bblock final: protected aux::node { // basic block (also used to specify a jump target)
    public: // construction/destruction
-      static auto make(proc *owner) { return new bblock{owner}; } // attach to the specified owner procedure at the end
-      static auto make(bblock *next) { return new bblock{next}; } // attach to the owner procedure before the specified sibling basic block
+      static auto make(proc *owner) { return new bblock(owner); } // attach to the specified owner procedure at the end
+      static auto make(bblock *next) { return new bblock(next); } // attach to the owner procedure before the specified sibling basic block
       RSN_NOINLINE void remove() noexcept { delete this; }        // remove from the owner procedure and dispose
-   public: // querying owner/sibling and relocation
-      RSN_INLINE auto owner() const noexcept { return _owner; }
-      RSN_INLINE auto next () const noexcept { return _next; }
-      RSN_INLINE auto prev () const noexcept { return _prev; }
+   public: // querying sibling and relocation
+      RSN_INLINE auto next() const noexcept { return _next; }
+      RSN_INLINE auto prev() const noexcept { return _prev; }
    public:
       RSN_INLINE void reattach() noexcept { // move to the end of the owner procedure
          (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev;
          _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this;
       }
    public: // querying contents
-      RSN_INLINE auto head () const noexcept { return _head; }
-      RSN_INLINE auto tail () const noexcept { return _tail; }
-      RSN_INLINE auto count() const noexcept { return _count; }
+      RSN_INLINE auto head() const noexcept { return _front; }
+      RSN_INLINE auto rear() const noexcept { return _back;  }
    private: // internal representation
-      proc *const _owner; bblock *_next, *_prev;
-      insn *_head{}, *_tail{}; long _count{}; friend insn;
+      bblock *_next, *_prev; proc *_owner/*valid only at extremes*/;
+      insn *_head{}, *_rear{}; friend insn/*to access these members*/;
    private: // implementation helpers
-      RSN_INLINE explicit bblock(proc *owner) noexcept: _owner(owner), _next{}, _prev(owner->_tail) // attach to the specified owner at the end
-         { _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count; }
-      RSN_INLINE explicit bblock(bblock *next) noexcept: _owner(next->_owner), _next(next), _prev(next->_prev) // attach to the owner before the specified basic block
-         { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count; }
+      RSN_INLINE explicit bblock(proc *owner) noexcept // attach to the specified owner at the end
+         : _next{}, _prev(owner->_rear), pnext(&(RSN_LIKELY(_prev) ? _prev->_next : owner->_head)), pprev(&owner->_rear) { *pprev = *pnext = this; }
+      RSN_INLINE explicit bblock(bblock *next) noexcept // attach to the owner before the specified basic block
+         : _next(next), _prev(next->_prev), pnext(&(RSN_LIKELY(_prev) ? _prev->_next : owner->_head)), pprev(&next->_prev) { *pprev = *pnext = this; }
    private:
       ~bblock();
-   public: // embedded temporary data
-      struct {
-         bblock *bb;
-         std::unordered_set<bblock *> preds;
-      } temp;
    # if RSN_USE_DEBUG
    public:
       void dump() const noexcept;
@@ -297,6 +291,12 @@ namespace rsn::opt {
       void dump_ref() const noexcept { std::fprintf(stderr, "L%u", sn); }
       friend struct log;
    # endif // # if RSN_USE_DEBUG
+   public: // embedded temporary data
+      struct {
+      # define RSN_OPT_TEMP_BBLOCK
+      # include "opt-temp-tcc"
+      # undef RSN_OPT_TEMP_BBLOCK
+      } temp;
    };
    RSN_INLINE inline proc::~proc() {
       while (head()) head()->remove();
@@ -308,49 +308,60 @@ namespace rsn::opt {
       virtual insn *clone(insn *next) const = 0;    // attach the copy to the new owner basic block before the specified sibling instruction
       void remove() noexcept { delete this; }       // remove from the owner basic block and dispose
    public: // querying owner/sibling and relocation
-      RSN_INLINE auto owner() const noexcept { return _owner; }
-      RSN_INLINE auto next () const noexcept { return _next; }
-      RSN_INLINE auto prev () const noexcept { return _prev; }
+      RSN_INLINE auto next() const noexcept { return _next; }
+      RSN_INLINE auto prev() const noexcept { return _prev; }
    public:
+      static RSN_INLINE void reattach(bblock *owner, insn *head, insn *rear) noexcept {
+         *head->pnext = &rear->
+      }
+
       RSN_INLINE void reattach(bblock *owner) noexcept { // move to the end of the specified new owner basic block
          (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev; --_owner->_count;
          _owner = owner, _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count;
       }
    public: // querying contents and performing transformations
-      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>               { return _outputs; }
-      RSN_INLINE auto outputs() noexcept const->lib::range_ref<const lib::smart_ptr<vreg> *>   { return _outputs; }
-      RSN_INLINE auto inputs() noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
-      RSN_INLINE auto inputs() noexcept const->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
-      RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                            { return _targets; }
-      RSN_INLINE auto targets() noexcept const->lib::range_ref<bblock *const *>                { return _targets; }
+      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>                { return _outputs; }
+      RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>    { return _outputs; }
+      RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
+      RSN_INLINE auto inputs () const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
+      RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                             { return _targets; }
+      RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                 { return _targets; }
+   public:
       RSN_INLINE virtual bool try_to_fold() { return false; }
    private: // internal representation
-      bblock *_owner; insn *_next, *_prev;
+      insn *_next, *_prev; bblock *_owner /*valid only at extremes*/;
    protected:
       lib::range_ref<lib::smart_ptr<vreg> *> _outputs;
       lib::range_ref<lib::smart_ptr<operand> *> _inputs;
       lib::range_ref<bblock **> _targets;
    protected: // implementation helpers
-      RSN_INLINE explicit insn(bblock *owner, decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets) noexcept
-         : _outputs(outputs), _inputs(inputs), _targets(targets), _owner(owner), _next{}, _prev(owner->_tail)
-         { _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this, ++_owner->_count; } // attach to the specified owner at the end
-      RSN_INLINE explicit insn(insn *next, decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets) noexcept
-         : _outputs(outputs), _inputs(inputs), _targets(targets), _owner(next->_owner), _next(next), _prev(next->_prev)
-         { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this, ++_owner->_count; } // attach to the owner before the specified instruction
-      RSN_INLINE virtual ~insn()
-         { (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev; --_owner->_count; }
-   public: // embedded temporary data
-      struct {
-         bool visited{};
-      } temp;
+      RSN_INLINE explicit insn( bblock *owner,
+         decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets ) noexcept: // attach to the specified owner at the end
+         _outputs(outputs), _inputs(inputs), _targets(targets),
+         _next{}, _prev(owner->_rear)
+         { *pprev = *pnext = this; }
+      RSN_INLINE explicit insn( insn *next,
+         decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets ) noexcept: // attach to the owner before the specified instruction
+         _outputs(outputs), _inputs(inputs), _targets(targets), _next(next), _prev(next->_prev)
+         { _next->_prev = this; if (RSN_LIKELY(_prev)) _prev->_next = this; else (_owner = next->_owner)->_head = this; }
+      RSN_INLINE virtual ~insn() {
+         if (RSN_LIKELY(_prev)) _prev->_next = _next; else (_owner->_head = _next)->_owner = _owner;
+         if (RSN_LIKELY(_next)) _next->_prev = _prev; else (_owner->_rear = _prev)->_owner = _owner;
+      }
    # if RSN_USE_DEBUG
    public:
       virtual void dump() const noexcept = 0;
    # endif // # if RSN_USE_DEBUG
+   public: // embedded temporary data
+      struct {
+      # define RSN_OPT_TEMP_INSN
+      # include "opt-temp-tcc"
+      # undef RSN_OPT_TEMP_INSN
+      } temp;
    };
    RSN_INLINE inline bblock::~bblock() {
-      (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev; --_owner->_count;
       while (head()) head()->remove();
+      *pnext = &_prev->_next, *pprev = &_next->_prev;
    }
 
    class insn_nonterm: public insn { // non-terminating

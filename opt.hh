@@ -20,7 +20,8 @@ namespace rsn::opt {
    void update_cfg_preds(proc *);             // update control-flow predecessors
    bool transform_cpropag(proc *) noexcept;   // constant propagation (from mov and beq insns)
    bool transform_cfold(proc *);              // constant folding (including inlining)
-   bool transform_cfg_merge(proc *) noexcept; // merge basic blocks
+   bool transform_cfg_merge(proc *) noexcept; // merge basic blocks (for any B1 and B2 where B1 is the only predecessor or B2)
+   bool transform_cfg_gc(proc *) noexcept;    // eliminate basic blocks unreachable from the entry basic block
 }
 
 # endif // # ifndef RSN_INCLUDED_OPT
