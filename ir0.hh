@@ -272,8 +272,8 @@ namespace rsn::opt {
          _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this;
       }
    public: // querying contents
-      RSN_INLINE auto head() const noexcept { return _front; }
-      RSN_INLINE auto rear() const noexcept { return _back;  }
+      RSN_INLINE auto head() const noexcept { return _head; }
+      RSN_INLINE auto rear() const noexcept { return _rear; }
    private: // internal representation
       bblock *_next, *_prev; proc *_owner/*valid only at extremes*/;
       insn *_head{}, *_rear{}; friend insn/*to access these members*/;
@@ -307,17 +307,28 @@ namespace rsn::opt {
       virtual insn *clone(bblock *owner) const = 0; // attach the copy to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // attach the copy to the new owner basic block before the specified sibling instruction
       void remove() noexcept { delete this; }       // remove from the owner basic block and dispose
-   public: // querying owner/sibling and relocation
+   public: // querying siblings and relocation
       RSN_INLINE auto next() const noexcept { return _next; }
       RSN_INLINE auto prev() const noexcept { return _prev; }
    public:
-      static RSN_INLINE void reattach(bblock *owner, insn *head, insn *rear) noexcept {
-         *head->pnext = &rear->
+      static RSN_INLINE void reattach(bblock *owner, insn *head, insn *rear) noexcept { // move head..rear to the end of the specified new owner basic block
+         if (RSN_LIKELY(head->_prev))
+            if (RSN_UNLIKELY(rear->_next))
+               (head->_prev->_next = rear->_next)->_prev = head->_prev;
+            else
+               ((head->_prev->_owner = rear->_owner)->_rear = head->_prev)->_next = {};
+         else
+            if (RSN_UNLIKELY(rear->_next))
+               ((rear->_next->_owner = head->_owner)->_head = rear->_next)->_prev = {};
+            else
+               head->_owner->_rear = head->_owner->_head = {};
+         if (RSN_LIKELY(!owner->_head))
+            ((rear->_owner = owner)->_rear = rear)->_next = ((head->_owner = owner)->_head = head)->_prev = {};
+         else
+            (owner->_rear->_next = head)->_prev = owner->_rear, ((rear->_owner = owner)->_rear = rear)->_next = {};
       }
-
       RSN_INLINE void reattach(bblock *owner) noexcept { // move to the end of the specified new owner basic block
-         (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev; --_owner->_count;
-         _owner = owner, _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; ++_owner->_count;
+         reattach(owner, this, this);
       }
    public: // querying contents and performing transformations
       RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>                { return _outputs; }
@@ -329,20 +340,17 @@ namespace rsn::opt {
    public:
       RSN_INLINE virtual bool try_to_fold() { return false; }
    private: // internal representation
-      insn *_next, *_prev; bblock *_owner /*valid only at extremes*/;
+      insn *_next, *_prev; bblock *_owner/*valid only at extremes*/;
    protected:
       lib::range_ref<lib::smart_ptr<vreg> *> _outputs;
       lib::range_ref<lib::smart_ptr<operand> *> _inputs;
       lib::range_ref<bblock **> _targets;
    protected: // implementation helpers
-      RSN_INLINE explicit insn( bblock *owner,
-         decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets ) noexcept: // attach to the specified owner at the end
-         _outputs(outputs), _inputs(inputs), _targets(targets),
-         _next{}, _prev(owner->_rear)
-         { *pprev = *pnext = this; }
-      RSN_INLINE explicit insn( insn *next,
-         decltype(_outputs) outputs, decltype(_inputs) inputs, decltype(_targets) targets ) noexcept: // attach to the owner before the specified instruction
-         _outputs(outputs), _inputs(inputs), _targets(targets), _next(next), _prev(next->_prev)
+      RSN_INLINE explicit insn(bblock *owner) noexcept: // attach to the specified owner at the end
+         _next{}, _prev(owner->_rear), _owner(owner)
+         { owner->_rear = (RSN_LIKELY(_prev) ? _prev->next : owner->_head) = this; }
+      RSN_INLINE explicit insn(insn *next) noexcept: // attach to the owner before the specified instruction
+         _next(next), _prev(next->_prev)
          { _next->_prev = this; if (RSN_LIKELY(_prev)) _prev->_next = this; else (_owner = next->_owner)->_head = this; }
       RSN_INLINE virtual ~insn() {
          if (RSN_LIKELY(_prev)) _prev->_next = _next; else (_owner->_head = _next)->_owner = _owner;
@@ -363,22 +371,6 @@ namespace rsn::opt {
       while (head()) head()->remove();
       *pnext = &_prev->_next, *pprev = &_next->_prev;
    }
-
-   class insn_nonterm: public insn { // non-terminating
-   protected:
-      using insn::_outputs, insn::_inputs;
-      RSN_INLINE explicit insn_nonterm(bblock *owner): insn(owner) { _targets = {nullptr, nullptr}; }
-      RSN_INLINE explicit insn_nonterm(insn *next): insn(next) { _targets = {nullptr, nullptr}; }
-      RSN_INLINE ~insn_nonterm() override {}
-   };
-
-   class insn_term: public insn { // terminating
-   protected:
-      using insn::_inputs, insn::_targets;
-      RSN_INLINE explicit insn_term(bblock *owner): insn(owner) { _outputs = {nullptr, nullptr}; }
-      RSN_INLINE explicit insn_term(insn *next): insn(next) { _outputs = {nullptr, nullptr}; }
-      RSN_INLINE ~insn_term() override {}
-   };
 
 } // namespace rsn::opt
 

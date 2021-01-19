@@ -101,6 +101,114 @@ namespace rsn::lib {
       template<typename> friend class smart_ptr;
    };
 
+   // Intrussive Linked Lists //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+   template<typename> class llist_node_mixin;
+
+   template<typename Obj> class llist_owner_mixin {
+      static_assert(std::is_base_of_v<llist_node_mixin<Obj>, Obj>);
+      static_assert(std::is_base_of_v<noncopyable, Obj>);
+   public:
+      llist_owner_mixin(const llist_owner_mixin &) = delete;
+      llist_owner_mixin &operator=(const llist_owner_mixin &) = delete;
+   public: // public access
+      RSN_INLINE auto head() const noexcept { return static_cast<Obj *>(_head); }
+      RSN_INLINE auto rear() const noexcept { return static_cast<Obj *>(_rear); }
+   protected: // constructors/destructors
+      llist_owner_mixin() = default;
+      ~llist_owner_mixin() = default;
+   private: // internal representation
+      llist_node_mixin<Obj> *_head{}, *_rear{};
+      friend class llist_node_mixin<Obj>;
+   };
+
+   template<typename Obj> class llist_node_mixin {
+      static_assert(std::is_base_of_v<llist_node_mixin<Obj>, Obj>);
+      static_assert(std::is_base_of_v<noncopyable, Obj>);
+   public:
+      llist_node_mixin(const llist_node_mixin &) = delete;
+      llist_node_mixin &operator=(const llist_node_mixin &) = delete;
+   public: // public access
+      RSN_INLINE auto next() const noexcept { return static_cast<Obj *>(_next); }
+      RSN_INLINE auto prev() const noexcept { return static_cast<Obj *>(_prev); }
+   protected: // constructors/destructors
+      RSN_INLINE explicit llist_node_mixin(llist_node_owner<Obj> *owner) noexcept // attach to the specified owner at the end
+         : _next{}, _prev(owner->_rear), _owner(owner)
+         { owner->_rear = (RSN_LIKELY(_prev) ? _prev->next : owner->_head) = static_cast<Obj *>(this); }
+      RSN_INLINE explicit llist_node_mixin(llist_node_mixin *next) noexcept // attach to the owner before the specified node
+         : _next(next), _prev(next->_prev)
+         { if (RSN_LIKELY(_prev)) _prev->_next = this; else (_owner = next->_owner)->_head = static_cast<Obj *>(this); next->_prev = static_cast<Obj *>(this); }
+      RSN_INLINE virtual ~llist_node_mixin() {
+         detach(this, this);
+      }
+      // move head..rear to the end of the specified new owner
+      static RSN_INLINE void reattach(llist_owner_mixin<Obj> *owner, llist_node_mixin *head, llist_node_mixin *rear) noexcept {
+         detach(head, rear);
+
+
+         if (RSN_LIKELY(head->_prev = owner->_head)) owner->_head->_next = head; else (_owner->_head = head)->_owner = next->_owner;
+         ((rear->_owner = owner)->_rear = rear)->_next = {};
+         
+
+         if (owner->_rear)
+            (owner->_rear->_next = head)->_prev = owner->_rear, ((rear->_owner = owner)->_rear = rear)->_next = {};
+
+            (head->_prev = owner->_rear)->_next = head, ((rear->_owner = owner)->_rear = rear)->_next = {};
+
+
+         head->_prev = owner->_rear, rear->_next = {}, owner->_rear = rear;
+         if (!owner->_head) owner->_head = head;
+
+
+
+
+         if (RSN_LIKELY(!owner->_head))
+            ((rear->_owner = owner)->_rear = rear)->_next = ((head->_owner = owner)->_head = head)->_prev = {};
+         else
+            (owner->_rear->_next = head)->_prev = owner->_rear, ((rear->_owner = owner)->_rear = rear)->_next = {};
+      }
+      static RSN_INLINE void reattach(llist_node_mixin *next, llist_node_mixin *head, llist_node_mixin *rear) noexcept {
+         detach(head, rear);
+
+         if (RSN_LIKELY(head->_prev = next->_prev)) next->_prev->_next = head; else (next->_owner->_head = head)->_owner = next->_owner;
+         (rear->_next = next)->_prev = rear;
+
+         (next->_prev = rear)->_next = next;
+
+
+
+
+         if (RSN_LIKELY(!next->_prev))
+            ((rear->_owner = owner)->_rear = rear)->_next = ((head->_owner = owner)->_head = head)->_prev = {};
+         else
+            (owner->_rear->_next = head)->_prev = owner->_rear, ((rear->_owner = owner)->_rear = rear)->_next = {};
+      }
+   private: // internal representation
+      llist_node_mixin *_next, *_prev;
+      llist_node_owner<Obj> *_owner; // must be valid only when !_next || !_prev
+   private: // implementation helpers
+      RSN_INLINE static void attach(llist_node_mixin *head, llist_node_mixin *rear, llist_owner_mixin<Obj> *owner) noexcept {
+         if (RSN_UNLIKELY(head->_prev = owner->_rear)) owner->_rear->_next = head; else (owner->_head = head)->_owner = owner;
+         ((rear->_owner = owner)->_rear = rear)->_next = {};
+      }
+      RSN_INLINE static void attach(llist_node_mixin *head, llist_node_mixin *rear, llist_node_mixin *next) noexcept {
+         if (RSN_LIKELY(head->_prev = next->_prev)) next->_prev->_next = head; else (next->_owner->_head = head)->_owner = next->_owner;
+         (next->_prev = rear)->_next = next;
+      }
+      RSN_INLINE static void detach(llist_node_mixin *head, llist_node_mixin *rear) noexcept {
+         if (RSN_LIKELY(head->_prev))
+            if (RSN_UNLIKELY(rear->_next))
+               (head->_prev->_next = rear->_next)->_prev = head->_prev;
+            else
+               ((head->_prev->_owner = rear->_owner)->_rear = head->_prev)->_next = {};
+         else
+            if (RSN_UNLIKELY(rear->_next))
+               ((rear->_next->_owner = head->_owner)->_head = rear->_next)->_prev = {};
+            else
+               head->_owner->_rear = head->_owner->_head = {};
+      }
+   };
+
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    template<typename Obj, std::size_t MinRes = /*up to 2 cache-lines*/ (128 - sizeof(Obj *) - sizeof(std::size_t)) / sizeof(Obj)>
