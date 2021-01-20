@@ -188,7 +188,7 @@ namespace rsn::opt {
    };
 
    class proc final: public rel_imm, // procedure, AKA function, subroutine, etc. (translation unit)
-      public lib::llist_owner_mixin<bblock> {
+      public lib::collection_mixin<bblock> {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
    private: // implementation helpers
@@ -255,50 +255,44 @@ namespace rsn::opt {
    };
 
    class bblock final: protected aux::node, // basic block (also used to specify a jump target)
-      public lib::llist_node_mixin<bblock>, public lib::llist_owner_mixin<insn> {
-   public: // construction/destruction
-      static auto make(proc *owner)  { return new bblock(owner); } // construct and attach to the specified owner procedure at the end
-      static auto make(bblock *next) { return new bblock(next); }  // construct and attach to the owner procedure before the specified sibling basic block
-      void remove() noexcept { detach(this, this), delete this; }  // remove from the owner procedure and dispose
-   public: // relocation (in addition to the inherited static functions)
-      RSN_INLINE void reattach(proc *owner) noexcept { reattach(this, this, owner); }
-      RSN_INLINE void reattach(bblock *next) noexcept { reattach(this, this, next); }
-   private: // internal representation
-      bblock *_next, *_prev; proc *_owner/*valid only at extremes*/;
-      insn *_head{}, *_rear{}; friend insn/*to access these members*/;
+      public lib::collection_item_mixin<bblock>, public lib::collection_mixin<insn> {
+   public: // construction
+      static auto make(proc *owner) { return new bblock(owner); } // construct and attach to the specified owner procedure at the end
+      static auto make(bblock *next) { return new bblock(next); } // construct and attach to the owner procedure before the specified sibling basic block
    private: // implementation helpers
-      RSN_INLINE explicit bblock(proc *owner) noexcept  { attach(this, this, owner); }
-      RSN_INLINE explicit bblock(bblock *next) noexcept { attach(this, this, next); }
+      RSN_INLINE explicit bblock(proc *owner) noexcept: collection_item_mixin(owner) {}
+      RSN_INLINE explicit bblock(bblock *next) noexcept: collection_item_mixin(next) {}
+   private:
       ~bblock();
-   private: // mixin integration
-      typedef proc llist_owner;
-      friend llist_owner_mixin; friend llist_node_mixin;
+      friend collection_item_mixin;
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept;
    private:
       void dump_ref() const noexcept { std::fprintf(stderr, "L%u", sn); }
-      friend struct log;
+      friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_BBLOCK
-      # include "opt-temp-tcc"
+      # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_BBLOCK
       } temp;
    };
    RSN_INLINE inline proc::~proc() = default;
 
    class insn: protected aux::node, // IR instruction
-      public lib::llist_node_mixin<insn> {
-   public: // construction/destruction
+      public lib::collection_item_mixin<insn> {
+   protected: // constructors/destructors
+      RSN_INLINE explicit insn(bblock *owner) noexcept: collection_item_mixin(owner) {} // attach to the specified owner basic block at the end
+      RSN_INLINE explicit insn(insn *next) noexcept: collection_item_mixin(next) {}     // attach to the owner basic block before the specified sibling instruction
+   protected:
+      virtual ~insn() = default;
+      friend collection_item_mixin;
+   public: // copy-construction
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
-      void remove() noexcept { detach(this, this), delete this; } // remove from the owner basic block and dispose
-   public: // relocation (in addition to the inherited static functions)
-      RSN_INLINE void reattach(proc *owner) noexcept  { reattach(this, this, owner); } // re-attach to the specified owner basic block at the end
-      RSN_INLINE void reattach(bblock *next) noexcept { reattach(this, this, next); }  // re-attach to the owner basic block before the specified sibling instruction
-   public: // querying contents and local transformations
+   public: // querying contents and instruction simplification
       RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>                { return _outputs; }
       RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>    { return _outputs; }
       RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs; }
@@ -306,18 +300,11 @@ namespace rsn::opt {
       RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                             { return _targets; }
       RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                 { return _targets; }
    public:
-      RSN_INLINE virtual bool transform_fold() { return false; }
-   protected:
+      RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification (e.g. x + 0 -> x), and canonicalization (e.g. 0 == x -> x == 0)
+   protected: // internal representation
       lib::range_ref<lib::smart_ptr<vreg> *> _outputs;
       lib::range_ref<lib::smart_ptr<operand> *> _inputs;
       lib::range_ref<bblock **> _targets;
-   protected: // implementation helpers
-      RSN_INLINE explicit insn(bblock *owner) noexcept { attach(this, this, owner); } // attach to the specified owner basic block at the end
-      RSN_INLINE explicit insn(insn *next) noexcept    { attach(this, this, next);  } // attach to the owner basic block before the specified sibling instruction
-      virtual ~insn() = default;
-   private: // mixin integration
-      typedef bblock llist_owner;
-      friend llist_owner_mixin; friend llist_node_mixin;
    # if RSN_USE_DEBUG
    public:
       virtual void dump() const noexcept = 0;
