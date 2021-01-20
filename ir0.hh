@@ -187,14 +187,10 @@ namespace rsn::opt {
    # endif // # if RSN_USE_DEBUG
    };
 
-   class proc final: public rel_imm { // procedure, AKA function, subroutine, etc. (translation unit)
+   class proc final: public rel_imm, // procedure, AKA function, subroutine, etc. (translation unit)
+      public lib::llist_owner_mixin<bblock> {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
-   public: // querying contents
-      RSN_INLINE auto head() const noexcept { return _head; }
-      RSN_INLINE auto rear() const noexcept { return _rear; }
-   private: // internal representation
-      bblock *_head{}, *_rear{}; friend bblock;
    private: // implementation helpers
       RSN_INLINE explicit proc(decltype(id) &&id): rel_imm{std::move(id)} {}
       ~proc() override;
@@ -258,32 +254,25 @@ namespace rsn::opt {
       } temp;
    };
 
-   class bblock final: protected aux::node { // basic block (also used to specify a jump target)
+   class bblock final: protected aux::node, // basic block (also used to specify a jump target)
+      public lib::llist_node_mixin<bblock>, public lib::llist_owner_mixin<insn> {
    public: // construction/destruction
-      static auto make(proc *owner) { return new bblock(owner); } // attach to the specified owner procedure at the end
-      static auto make(bblock *next) { return new bblock(next); } // attach to the owner procedure before the specified sibling basic block
-      RSN_NOINLINE void remove() noexcept { delete this; }        // remove from the owner procedure and dispose
-   public: // querying sibling and relocation
-      RSN_INLINE auto next() const noexcept { return _next; }
-      RSN_INLINE auto prev() const noexcept { return _prev; }
-   public:
-      RSN_INLINE void reattach() noexcept { // move to the end of the owner procedure
-         (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_tail) = _prev;
-         _next = {}, _prev = _owner->_tail; _owner->_tail = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this;
-      }
-   public: // querying contents
-      RSN_INLINE auto head() const noexcept { return _head; }
-      RSN_INLINE auto rear() const noexcept { return _rear; }
+      static auto make(proc *owner)  { return new bblock(owner); } // construct and attach to the specified owner procedure at the end
+      static auto make(bblock *next) { return new bblock(next); }  // construct and attach to the owner procedure before the specified sibling basic block
+      void remove() noexcept { detach(this, this), delete this; }  // remove from the owner procedure and dispose
+   public: // relocation (in addition to the inherited static functions)
+      RSN_INLINE void reattach(proc *owner) noexcept { reattach(this, this, owner); }
+      RSN_INLINE void reattach(bblock *next) noexcept { reattach(this, this, next); }
    private: // internal representation
       bblock *_next, *_prev; proc *_owner/*valid only at extremes*/;
       insn *_head{}, *_rear{}; friend insn/*to access these members*/;
    private: // implementation helpers
-      RSN_INLINE explicit bblock(proc *owner) noexcept // attach to the specified owner at the end
-         : _next{}, _prev(owner->_rear), pnext(&(RSN_LIKELY(_prev) ? _prev->_next : owner->_head)), pprev(&owner->_rear) { *pprev = *pnext = this; }
-      RSN_INLINE explicit bblock(bblock *next) noexcept // attach to the owner before the specified basic block
-         : _next(next), _prev(next->_prev), pnext(&(RSN_LIKELY(_prev) ? _prev->_next : owner->_head)), pprev(&next->_prev) { *pprev = *pnext = this; }
-   private:
+      RSN_INLINE explicit bblock(proc *owner) noexcept  { attach(this, this, owner); }
+      RSN_INLINE explicit bblock(bblock *next) noexcept { attach(this, this, next); }
       ~bblock();
+   private: // mixin integration
+      typedef proc llist_owner;
+      friend llist_owner_mixin; friend llist_node_mixin;
    # if RSN_USE_DEBUG
    public:
       void dump() const noexcept;
@@ -298,64 +287,37 @@ namespace rsn::opt {
       # undef RSN_OPT_TEMP_BBLOCK
       } temp;
    };
-   RSN_INLINE inline proc::~proc() {
-      while (head()) head()->remove();
-   }
+   RSN_INLINE inline proc::~proc() = default;
 
-   class insn: protected aux::node { // IR instruction
+   class insn: protected aux::node, // IR instruction
+      public lib::llist_node_mixin<insn> {
    public: // construction/destruction
-      virtual insn *clone(bblock *owner) const = 0; // attach the copy to the specified new owner basic block at the end
-      virtual insn *clone(insn *next) const = 0;    // attach the copy to the new owner basic block before the specified sibling instruction
-      void remove() noexcept { delete this; }       // remove from the owner basic block and dispose
-   public: // querying siblings and relocation
-      RSN_INLINE auto next() const noexcept { return _next; }
-      RSN_INLINE auto prev() const noexcept { return _prev; }
-   public:
-      static RSN_INLINE void reattach(bblock *owner, insn *head, insn *rear) noexcept { // move head..rear to the end of the specified new owner basic block
-         if (RSN_LIKELY(head->_prev))
-            if (RSN_UNLIKELY(rear->_next))
-               (head->_prev->_next = rear->_next)->_prev = head->_prev;
-            else
-               ((head->_prev->_owner = rear->_owner)->_rear = head->_prev)->_next = {};
-         else
-            if (RSN_UNLIKELY(rear->_next))
-               ((rear->_next->_owner = head->_owner)->_head = rear->_next)->_prev = {};
-            else
-               head->_owner->_rear = head->_owner->_head = {};
-         if (RSN_LIKELY(!owner->_head))
-            ((rear->_owner = owner)->_rear = rear)->_next = ((head->_owner = owner)->_head = head)->_prev = {};
-         else
-            (owner->_rear->_next = head)->_prev = owner->_rear, ((rear->_owner = owner)->_rear = rear)->_next = {};
-      }
-      RSN_INLINE void reattach(bblock *owner) noexcept { // move to the end of the specified new owner basic block
-         reattach(owner, this, this);
-      }
-   public: // querying contents and performing transformations
+      virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
+      virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
+      void remove() noexcept { detach(this, this), delete this; } // remove from the owner basic block and dispose
+   public: // relocation (in addition to the inherited static functions)
+      RSN_INLINE void reattach(proc *owner) noexcept  { reattach(this, this, owner); } // re-attach to the specified owner basic block at the end
+      RSN_INLINE void reattach(bblock *next) noexcept { reattach(this, this, next); }  // re-attach to the owner basic block before the specified sibling instruction
+   public: // querying contents and local transformations
       RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>                { return _outputs; }
       RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>    { return _outputs; }
-      RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
-      RSN_INLINE auto inputs () const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
+      RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs; }
+      RSN_INLINE auto inputs () const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs; }
       RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                             { return _targets; }
       RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                 { return _targets; }
    public:
-      RSN_INLINE virtual bool try_to_fold() { return false; }
-   private: // internal representation
-      insn *_next, *_prev; bblock *_owner/*valid only at extremes*/;
+      RSN_INLINE virtual bool transform_fold() { return false; }
    protected:
       lib::range_ref<lib::smart_ptr<vreg> *> _outputs;
       lib::range_ref<lib::smart_ptr<operand> *> _inputs;
       lib::range_ref<bblock **> _targets;
    protected: // implementation helpers
-      RSN_INLINE explicit insn(bblock *owner) noexcept: // attach to the specified owner at the end
-         _next{}, _prev(owner->_rear), _owner(owner)
-         { owner->_rear = (RSN_LIKELY(_prev) ? _prev->next : owner->_head) = this; }
-      RSN_INLINE explicit insn(insn *next) noexcept: // attach to the owner before the specified instruction
-         _next(next), _prev(next->_prev)
-         { _next->_prev = this; if (RSN_LIKELY(_prev)) _prev->_next = this; else (_owner = next->_owner)->_head = this; }
-      RSN_INLINE virtual ~insn() {
-         if (RSN_LIKELY(_prev)) _prev->_next = _next; else (_owner->_head = _next)->_owner = _owner;
-         if (RSN_LIKELY(_next)) _next->_prev = _prev; else (_owner->_rear = _prev)->_owner = _owner;
-      }
+      RSN_INLINE explicit insn(bblock *owner) noexcept { attach(this, this, owner); } // attach to the specified owner basic block at the end
+      RSN_INLINE explicit insn(insn *next) noexcept    { attach(this, this, next);  } // attach to the owner basic block before the specified sibling instruction
+      virtual ~insn() = default;
+   private: // mixin integration
+      typedef bblock llist_owner;
+      friend llist_owner_mixin; friend llist_node_mixin;
    # if RSN_USE_DEBUG
    public:
       virtual void dump() const noexcept = 0;
@@ -367,10 +329,7 @@ namespace rsn::opt {
       # undef RSN_OPT_TEMP_INSN
       } temp;
    };
-   RSN_INLINE inline bblock::~bblock() {
-      while (head()) head()->remove();
-      *pnext = &_prev->_next, *pprev = &_next->_prev;
-   }
+   RSN_INLINE inline bblock::~bblock() = default;
 
 } // namespace rsn::opt
 
