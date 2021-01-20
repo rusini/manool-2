@@ -281,22 +281,22 @@ namespace rsn::opt {
    };
    RSN_INLINE inline proc::~proc() = default;
 
-   class insn: protected aux::node, // IR instruction
-      public lib::collection_item_mixin<insn> {
+   class insn: protected aux::node { // IR instruction
    protected: // constructors/destructors
-      RSN_INLINE explicit insn(bblock *owner) noexcept: collection_item_mixin(owner) {} // attach to the specified owner basic block at the end
-      RSN_INLINE explicit insn(insn *next) noexcept: collection_item_mixin(next) {}     // attach to the owner basic block before the specified sibling instruction
+      RSN_INLINE explicit insn(bblock *owner) noexcept: _owner(owner), _next{}, _prev(owner->_rear)
+         { _owner->_rear = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; } // attach to the specified owner basic block at the end
+      RSN_INLINE explicit insn(insn *next) noexcept: _owner(next->_owner), _next(next), _prev(next->_prev)
+         { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; } // attach to the owner basic block before the specified sibling instruction
    protected:
-      virtual ~insn() = default;
-      friend collection_item_mixin;
+      RSN_INLINE virtual ~insn() { (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_rear) = _prev; }
    public: // copy-construction
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
    public: // querying contents and instruction simplification
       RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>                { return _outputs; }
       RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>    { return _outputs; }
-      RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs; }
-      RSN_INLINE auto inputs () const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs; }
+      RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
+      RSN_INLINE auto inputs () const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
       RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                             { return _targets; }
       RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                 { return _targets; }
    public:

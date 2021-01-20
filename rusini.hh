@@ -102,67 +102,91 @@ namespace rsn::lib {
 
    // Collections //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-   template<typename> class collection_item_mixin;
+   template<typename, typename> class collection_item_mixin;
 
-   template<typename Obj> class collection_mixin { // an object that owns a varying number of other objects of a specific (static) type
-      static_assert(std::is_base_of_v<collection_item_mixin<Obj>, Obj>); /* Obj must be actually *the only* descendant class of collection_item_mixin<Obj> */
+   template<typename Obj, typename Owner> class collection_mixin { // an object that owns a varying number of other objects of a specific (static) type
+      static_assert(std::is_base_of_v<collection_item_mixin, Obj>);   // Obj must be actually *the only* descendant class of collection_item_mixin<Obj, Owner>
+      static_assert(std::is_base_of_v<collection_mixin<Obj>, Owner>); // Owner must be actually *the only* descendant class of collection_mixin<Obj>
    protected: // constructors/destructors
       collection_mixin() = default;
-      ~collection_mixin() { while (rear()) rear()->collection_item_mixin<Obj>::remove(); }
+      ~collection_mixin() { while (rear()) rear()->collection_item_mixin<Obj, Owner>::remove(); }
    public: // item access
-      RSN_INLINE auto head() noexcept       { return static_cast<Obj *>(_head); }
-      RSN_INLINE auto head() const noexcept { return static_cast<const Obj *>(_head); }
-      RSN_INLINE auto rear() noexcept       { return static_cast<Obj *>(_rear); }
-      RSN_INLINE auto rear() const noexcept { return static_cast<const Obj *>(_rear); }
+      RSN_INLINE Obj *head() noexcept { return _head; }
+      RSN_INLINE const Obj *head() const noexcept { _head; }
+      RSN_INLINE Obj *rear() noexcept { return _rear; }
+      RSN_INLINE const Obj *rear() const noexcept { return _rear; }
    private: // internal representation
-      collection_item_mixin<Obj> *_head{}, *_rear{};
-      friend collection_item_mixin<Obj>;
+      Obj *_head{}, *_rear{};
+      friend collection_item_mixin<Obj, Owner>;
    };
 
-   template<typename Obj> class collection_item_mixin: noncopyable { // collection items organized in a linked list
-      static_assert(std::is_base_of_v<collection_item_mixin, Obj>); /* Obj must be actually *the only* descendant class of collection_item_mixin<Obj> */
+   template<typename Obj, typename Owner> class collection_item_mixin: noncopyable { // collection objects organized in a linked list
+      static_assert(std::is_base_of_v<collection_item_mixin, Obj>);   // Obj must be actually *the only* descendant class of collection_item_mixin<Obj, Owner>
+      static_assert(std::is_base_of_v<collection_mixin<Obj>, Owner>); // Owner must be actually *the only* descendant class of collection_mixin<Obj>
    protected: // constructors/destructors
-      RSN_INLINE collection_item_mixin(collection_mixin<Obj> *owner) noexcept { attach(this, this, owner); }
-      RSN_INLINE collection_item_mixin(collection_item_mixin *next) noexcept { attach(this, this, next); }
-      RSN_INLINE ~collection_item_mixin() { detach(this, this); }
+      RSN_INLINE explicit collection_item_mixin(Owner *owner) noexcept
+         : _owner(owner), _next{}, _prev(owner->owner_mixin::_rear)
+         { _owner->owner_mixin::_rear = (RSN_LIKELY(_prev) ? _prev->obj_mixin::_next : _owner->owner_mixin::_head) = static_cast<Obj *>(this); }
+      RSN_INLINE explicit collection_item_mixin(Obj *next) noexcept
+         : _owner(next->obj_mixin::_owner), _next(next), _prev(next->obj_mixin::_prev)
+         { _next->obj_mixin::_prev = (RSN_LIKELY(_prev) ? _prev->obj_mixin::_next : _owner->owner_mixin::_head) = static_cast<Obj *>(this); }
+      RSN_INLINE virtual ~insn() {
+         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next;
+         (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
+      }
    public: // item access
-      RSN_INLINE auto next() noexcept       { return static_cast<Obj *>(_next); }
-      RSN_INLINE auto next() const noexcept { return static_cast<const Obj *>(_next); }
-      RSN_INLINE auto prev() noexcept       { return static_cast<Obj *>(_prev); }
-      RSN_INLINE auto prev() const noexcept { return static_cast<const Obj *>(_prev); }
+      RSN_INLINE Obj *next () noexcept { return _next; }
+      RSN_INLINE const Obj *next () const noexcept { return _next; }
+      RSN_INLINE Obj *prev () noexcept { return _prev; }
+      RSN_INLINE const Obj *prev () const noexcept { return _prev; }
+      RSN_INLINE Owner *owner() noexcept { return _owner; }
+      RSN_INLINE const Owner *owner() const noexcept { return _owner; }
    public: // destruction/relocation
       void remove() noexcept { delete static_cast<Obj *>(this); }
-      RSN_INLINE void reattach(collection_mixin<Obj> *owner) noexcept { reattach(this, this, owner); }
-      RSN_INLINE void reattach(collection_item_mixin *next) noexcept { reattach(this, this, next); }
    public:
-      RSN_INLINE static void reattach(collection_item_mixin *head, collection_item_mixin *rear, collection_mixin<Obj> *owner) noexcept
-         { detach(head, rear), attach(head, rear, owner); }
-      RSN_INLINE static void reattach(collection_item_mixin *head, collection_item_mixin *rear, Obj *next) noexcept
-         { detach(head, rear), attach(head, rear, next); }
+      RSN_INLINE void reattach() noexcept { detach(); attach(); }
+      RSN_INLINE void reattach(Owner *owner) noexcept { detach(); _owner = owner, attach(); }
+      RSN_INLINE void reattach(Obj *next) noexcept { detach(); _owner = next->obj_mixin::_owner, attach(next); }
+
+
+
+      RSN_INLINE void reattach() noexcept {
+         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next,
+            (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
+         _owner->owner_type::_rear = (RSN_LIKELY(_prev = _owner->owner_type::_rear) ?
+            _prev->obj_type::_next : _owner->owner_type::_head) = static_cast<Obj *>(this), _next = {};
+      }
+      RSN_INLINE void reattach(Owner *owner) noexcept {
+         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next,
+            (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
+         _owner->owner_type::_rear = (RSN_LIKELY(_prev = (_owner = owner)->owner_type::_rear) ?
+            _prev->obj_type::_next : _owner->owner_type::_head) = static_cast<Obj *>(this), _next = {};
+      }
+      RSN_INLINE void reattach(Obj *next) noexcept {
+         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next,
+            (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
+         _next->obj_type::_prev = (RSN_LIKELY(_prev = next->obj_type::_prev) ? _prev->obj_type::_next :
+            (_owner = next->obj_type::_owner)->owner_type::_head) = static_cast<Obj *>(this), _next = {};
+      }
    private: // internal representation
-      collection_item_mixin *_next, *_prev;
-      collection_mixin<Obj> *_owner; // must be valid only when !_next || !_prev
+      Obj *_next, *_prev;
+      Owner *_owner;
    private: // implementation helpers
-      RSN_INLINE static void attach(collection_item_mixin *head, collection_item_mixin *rear, collection_mixin<Obj> *owner) noexcept {
-         if (RSN_LIKELY(head->_prev = owner->_rear)) owner->_rear->_next = head; else (owner->_head = head)->_owner = owner;
-         ((rear->_owner = owner)->_rear = rear)->_next = {};
+      RSN_INLINE void detach() noexcept {
+         (RSN_LIKELY(_prev) ? _prev->obj_mixin::_next : _owner->owner_mixin::_head) = _next;
+         (RSN_LIKELY(_next) ? _next->obj_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
       }
-      RSN_INLINE static void attach(collection_item_mixin *head, collection_item_mixin *rear, llist_obj_mixin *next) noexcept {
-         if (RSN_LIKELY(head->_prev = next->_prev)) next->_prev->_next = head; else (next->_owner->_head = head)->_owner = next->_owner;
-         (next->_prev = rear)->_next = next;
+      RSN_INLINE void attach() noexcept {
+         _owner->owner_type::_rear = (RSN_LIKELY(_prev = _owner->owner_type::_rear) ? _prev->obj_type::_next : _owner->owner_type::_head) = static_cast<Obj *>(this);
+         _next = {};
       }
-      RSN_INLINE static void detach(collection_item_mixin *head, collection_item_mixin *rear) noexcept {
-         if (RSN_LIKELY(head->_prev))
-            if (RSN_UNLIKELY(rear->_next))
-               (head->_prev->_next = rear->_next)->_prev = head->_prev;
-            else
-               ((head->_prev->_owner = rear->_owner)->_rear = head->_prev)->_next = {};
-         else
-            if (RSN_UNLIKELY(rear->_next))
-               ((rear->_next->_owner = head->_owner)->_head = rear->_next)->_prev = {};
-            else
-               head->_owner->_rear = head->_owner->_head = {};
+      RSN_INLINE void attach(Obj *next) noexcept {
+         _next->obj_type::_prev = (RSN_LIKELY(_prev = next->obj_type::_prev) ? _prev->obj_type::_next : _owner->owner_type::_head) = static_cast<Obj *>(this);
+         _next = next;
       }
+   private:
+      typedef collection_item_mixin obj_mixin;
+      typedef collection_mixin<Obj> owner_mixin;
    };
 
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
