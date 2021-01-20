@@ -124,50 +124,22 @@ namespace rsn::lib {
       static_assert(std::is_base_of_v<collection_item_mixin, Obj>);   // Obj must be actually *the only* descendant class of collection_item_mixin<Obj, Owner>
       static_assert(std::is_base_of_v<collection_mixin<Obj>, Owner>); // Owner must be actually *the only* descendant class of collection_mixin<Obj>
    protected: // constructors/destructors
-      RSN_INLINE explicit collection_item_mixin(Owner *owner) noexcept
-         : _owner(owner), _next{}, _prev(owner->owner_mixin::_rear)
-         { _owner->owner_mixin::_rear = (RSN_LIKELY(_prev) ? _prev->obj_mixin::_next : _owner->owner_mixin::_head) = static_cast<Obj *>(this); }
-      RSN_INLINE explicit collection_item_mixin(Obj *next) noexcept
-         : _owner(next->obj_mixin::_owner), _next(next), _prev(next->obj_mixin::_prev)
-         { _next->obj_mixin::_prev = (RSN_LIKELY(_prev) ? _prev->obj_mixin::_next : _owner->owner_mixin::_head) = static_cast<Obj *>(this); }
-      RSN_INLINE virtual ~insn() {
-         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next;
-         (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
-      }
+      RSN_INLINE explicit collection_item_mixin(Owner *owner) noexcept: _owner(owner) { attach(); }                    // attach to the specified owner at the end
+      RSN_INLINE explicit collection_item_mixin(Obj *next) noexcept: _owner(next->obj_mixin::_owner) { attach(next); } // attach to the owner before the spec. sibling
+      RSN_INLINE ~collection_item_mixin() { detach(); }
    public: // item access
-      RSN_INLINE Obj *next () noexcept { return _next; }
-      RSN_INLINE const Obj *next () const noexcept { return _next; }
-      RSN_INLINE Obj *prev () noexcept { return _prev; }
-      RSN_INLINE const Obj *prev () const noexcept { return _prev; }
-      RSN_INLINE Owner *owner() noexcept { return _owner; }
+      RSN_INLINE Obj         *next () noexcept       { return _next;  }
+      RSN_INLINE const Obj   *next () const noexcept { return _next;  }
+      RSN_INLINE Obj         *prev () noexcept       { return _prev;  }
+      RSN_INLINE const Obj   *prev () const noexcept { return _prev;  }
+      RSN_INLINE Owner       *owner() noexcept       { return _owner; }
       RSN_INLINE const Owner *owner() const noexcept { return _owner; }
    public: // destruction/relocation
-      void remove() noexcept { delete static_cast<Obj *>(this); }
+      void eliminate() noexcept { delete static_cast<Obj *>(this); } // detach from the owner procedure (in the destructor) and destroy/free
    public:
-      RSN_INLINE void reattach() noexcept { detach(); attach(); }
-      RSN_INLINE void reattach(Owner *owner) noexcept { detach(); _owner = owner, attach(); }
-      RSN_INLINE void reattach(Obj *next) noexcept { detach(); _owner = next->obj_mixin::_owner, attach(next); }
-
-
-
-      RSN_INLINE void reattach() noexcept {
-         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next,
-            (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
-         _owner->owner_type::_rear = (RSN_LIKELY(_prev = _owner->owner_type::_rear) ?
-            _prev->obj_type::_next : _owner->owner_type::_head) = static_cast<Obj *>(this), _next = {};
-      }
-      RSN_INLINE void reattach(Owner *owner) noexcept {
-         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next,
-            (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
-         _owner->owner_type::_rear = (RSN_LIKELY(_prev = (_owner = owner)->owner_type::_rear) ?
-            _prev->obj_type::_next : _owner->owner_type::_head) = static_cast<Obj *>(this), _next = {};
-      }
-      RSN_INLINE void reattach(Obj *next) noexcept {
-         (RSN_LIKELY(_prev) ? _prev->item_mixin::_next : _owner->owner_mixin::_head) = _next,
-            (RSN_LIKELY(_next) ? _next->item_mixin::_prev : _owner->owner_mixin::_rear) = _prev;
-         _next->obj_type::_prev = (RSN_LIKELY(_prev = next->obj_type::_prev) ? _prev->obj_type::_next :
-            (_owner = next->obj_type::_owner)->owner_type::_head) = static_cast<Obj *>(this), _next = {};
-      }
+      RSN_INLINE void reattach() noexcept { detach(); attach(); }                                                // re-attach to the end of the current owner
+      RSN_INLINE void reattach(Owner *owner) noexcept { detach(); _owner = owner, attach(); }                    // re-attach to the specified new owner at the end
+      RSN_INLINE void reattach(Obj *next) noexcept { detach(); _owner = next->obj_mixin::_owner, attach(next); } // re-attach to the new owner before the spec. sibling
    private: // internal representation
       Obj *_next, *_prev;
       Owner *_owner;
@@ -186,8 +158,26 @@ namespace rsn::lib {
       }
    private:
       typedef collection_item_mixin obj_mixin;
-      typedef collection_mixin<Obj> owner_mixin;
+      typedef collection_mixin<Obj, Owner> owner_mixin;
    };
+
+   // Stable-iteration helpers
+   template<typename Obj, typename Owner> auto all(Obj *begin, Obj *end = {})
+      ->std::enable_if_t<std::is_base_of_v<collection_item_mixin<Obj, Owner>, Obj>, lib::small_vec<Obj *>> {
+      std::size_t size = 0; for (auto it = begin; it != end; it = it->collection_item_mixin<Obj, Owner>::next()) ++size;
+      return [size]{
+         lib::small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->collection_item_mixin<Obj, Owner>::next()) res.push_back(it);
+         return res;
+      }();
+   }
+   template<typename Obj, typename Owner> auto rev(Obj *begin, Obj *end = {})
+      ->std::enable_if_t<std::is_base_of_v<collection_item_mixin<Obj, Owner>, Obj>, lib::small_vec<Obj *>> {
+      std::size_t size = 0; for (auto it = begin; it != end; it = it->collection_item_mixin<Obj, Owner>::prev()) ++size;
+      return [size]{
+         lib::small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->collection_item_mixin<Obj, Owner>::prev()) res.push_back(it);
+         return res;
+      }();
+   }
 
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

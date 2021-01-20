@@ -281,14 +281,14 @@ namespace rsn::opt {
    };
    RSN_INLINE inline proc::~proc() = default;
 
-   class insn: protected aux::node { // IR instruction
+   class insn: protected aux::node, // IR instruction
+      public lib::collection_item_mixin<insn, bblock>
    protected: // constructors/destructors
-      RSN_INLINE explicit insn(bblock *owner) noexcept: _owner(owner), _next{}, _prev(owner->_rear)
-         { _owner->_rear = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; } // attach to the specified owner basic block at the end
-      RSN_INLINE explicit insn(insn *next) noexcept: _owner(next->_owner), _next(next), _prev(next->_prev)
-         { _next->_prev = (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = this; } // attach to the owner basic block before the specified sibling instruction
+      RSN_INLINE explicit insn(bblock *owner) noexcept: collection_item_mixin(owner) {} // attach to the specified owner basic block at the end
+      RSN_INLINE explicit insn(insn *next) noexcept: collection_item_mixin(next) {}     // attach to the owner basic block before the specified sibling instruction
    protected:
-      RSN_INLINE virtual ~insn() { (RSN_LIKELY(_prev) ? _prev->_next : _owner->_head) = _next, (RSN_LIKELY(_next) ? _next->_prev : _owner->_rear) = _prev; }
+      RSN_INLINE virtual ~insn() = default;
+      friend collection_item_mixin;
    public: // copy-construction
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
@@ -302,11 +302,11 @@ namespace rsn::opt {
    public:
       RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification (e.g. x + 0 -> x), and canonicalization (e.g. 0 == x -> x == 0)
    protected: // internal representation
-      lib::range_ref<lib::smart_ptr<vreg> *> _outputs;
-      lib::range_ref<lib::smart_ptr<operand> *> _inputs;
-      lib::range_ref<bblock **> _targets;
+      lib::range_ref<lib::smart_ptr<vreg> *> _outputs{nullptr, nullptr};   // the compiler is to eliminate redundant stores in initialization
+      lib::range_ref<lib::smart_ptr<operand> *> _inputs{nullptr, nullptr}; // ditto
+      lib::range_ref<bblock **> _targets{nullptr, nullptr};                // ditto
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       virtual void dump() const noexcept = 0;
    # endif // # if RSN_USE_DEBUG
    public: // embedded temporary data
