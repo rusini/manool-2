@@ -52,8 +52,7 @@ namespace rsn::lib {
 
    class smart_rc;
 
-   template<typename Obj>
-   class smart_ptr { // simple, intrussive, and MT-unsafe analog of std::shared_ptr
+   template<typename Obj> class smart_ptr { // simple, intrussive, and MT-unsafe analog of std::shared_ptr
       static_assert(std::is_base_of_v<smart_rc, Obj>);
    public: // standard operations
       smart_ptr() = default;
@@ -101,61 +100,54 @@ namespace rsn::lib {
       template<typename> friend class smart_ptr;
    };
 
-   // Mixins for Linked Lists //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+   // Collections //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    template<typename> class collection_item_mixin;
 
-   template<typename Item> class collection_mixin: noncopyable {
-      static_assert(std::is_base_of_v<collection_mixin, Item>); // Item must be actually the *only* descendant class of collection_mixin<Item>
-   public: // public access
-      RSN_INLINE auto head() const noexcept { return static_cast<Item *>(_head); }
-      RSN_INLINE auto rear() const noexcept { return static_cast<Item *>(_rear); }
+   template<typename Obj> class collection_mixin { // an object that owns a varying number of other objects of a specific static type
+      static_assert(std::is_base_of_v<collection_mixin, Obj>); /* Obj must be actually the *only* descendant class of collection_mixin<Obj> */
+   public: // item access
+      RSN_INLINE auto head() const noexcept { return static_cast<Obj *>(_head); }
+      RSN_INLINE auto rear() const noexcept { return static_cast<Obj *>(_rear); }
    protected: // constructors/destructors
-      llist_owner_mixin() = default;
-   protected: // removal and destruction
-      RSN_NOINLINE ~llist_owner_mixin() noexcept
-         { for (auto node: head(); node;) { auto next = node->next(); delete static_cast<Obj *>(node); node = next; } }
+      collection_mixin() = default;
+      ~collection_mixin() { while (rear()) rear()-remove(); }
    private: // internal representation
-      collection_item_mixin<Item> *_head{}, *_rear{};
-      friend collection_item_mixin<Item>;
+      collection_item_mixin<Obj> *_head{}, *_rear{};
+      friend collection_item_mixin<Obj>;
    };
 
-   template<typename Item> class collection_item_mixin: noncopyable {
-      static_assert(std::is_base_of_v<collection_item_mixin, Item>); // Item must be actually the *only* descendant class of collection_item_mixin<Item>
-   public: // public access
-      RSN_INLINE auto next() const noexcept { return static_cast<Item *>(_next); }
-      RSN_INLINE auto prev() const noexcept { return static_cast<Item *>(_prev); }
-   public:
-      void remove() noexcept { delete static_cast<Item *>(this); }
-   public: // reattachment (relocation)
-      RSN_INLINE void reattach(typename Item::collection *owner) noexcept { reattach(this, this, owner); }
-      RSN_INLINE void reattach(Item *next) noexcept { reattach(this, this, next); }
-      RSN_INLINE static void reattach(Item *head, Item *rear, typename Item::collection *owner) noexcept { detach(head, rear), attach(head, rear, owner); }
-      RSN_INLINE static void reattach(Item *head, Item *rear, Item *next) noexcept { detach(head, rear), attach(head, rear, next); }
+   template<typename Obj> class collection_item_mixin: noncopyable { // collection items organized in a linked list
+      static_assert(std::is_base_of_v<collection_item_mixin, Obj>); /* Obj must be actually the *only* descendant class of collection_item_mixin<Obj> */
    protected: // constructors/destructors
-      RSN_INLINE collection_item_mixin(collection<Item> *owner) noexcept { attach(this, this, owner); }
+      RSN_INLINE collection_item_mixin(collection_mixin<Obj> *owner) noexcept { attach(this, this, owner); }
       RSN_INLINE collection_item_mixin(collection_item_mixin *next) noexcept { attach(this, this, next); }
       RSN_INLINE ~collection_item_mixin() { detach(this, this); }
-   protected:
-      RSN_INLINE static void attach(Obj *head, Obj *rear, typename Obj::llist_owner *owner) noexcept
-         { attach((llist_obj_mixin *)head, (llist_obj_mixin *)rear, (llist_owner_mixin<Obj> *)owner); }
-      RSN_INLINE static void attach(Obj *head, Obj *rear, Obj *next) noexcept
-         { attach((llist_obj_mixin *)head, (llist_obj_mixin *)rear, (llist_obj_mixin *)next); }
-      RSN_INLINE static void detach(Obj *head, Obj *rear) noexcept
-         { detach((llist_obj_mixin *)head, (llist_obj_mixin *)rear); }
+   public: // item access
+      RSN_INLINE auto next() const noexcept { return static_cast<Obj *>(_next); }
+      RSN_INLINE auto prev() const noexcept { return static_cast<Obj *>(_prev); }
+   public: // destruction/relocation
+      void remove() noexcept { delete static_cast<Obj *>(this); }
+      RSN_INLINE void reattach(collection_mixin<Obj> *owner) noexcept { reattach(this, this, owner); }
+      RSN_INLINE void reattach(collection_item_mixin *next) noexcept { reattach(this, this, next); }
+   public:
+      RSN_INLINE static void reattach(collection_item_mixin *head, collection_item_mixin *rear, collection_mixin<Obj> *owner) noexcept
+         { detach(head, rear), attach(head, rear, owner); }
+      RSN_INLINE static void reattach(collection_item_mixin *head, collection_item_mixin *rear, Obj *next) noexcept
+         { detach(head, rear), attach(head, rear, next); }
    private: // internal representation
-      llist_obj_mixin *_next, *_prev;
-      llist_node_owner<Obj> *_owner; // must be valid only when !_next || !_prev
+      collection_item_mixin *_next, *_prev;
+      collection_mixin<Obj> *_owner; // must be valid only when !_next || !_prev
    private: // implementation helpers
-      RSN_INLINE static void attach(llist_obj_mixin *head, llist_obj_mixin *rear, llist_owner_mixin<Obj> *owner) noexcept {
+      RSN_INLINE static void attach(collection_item_mixin *head, collection_item_mixin *rear, collection_mixin<Obj> *owner) noexcept {
          if (RSN_UNLIKELY(head->_prev = owner->_rear)) owner->_rear->_next = head; else (owner->_head = head)->_owner = owner;
          ((rear->_owner = owner)->_rear = rear)->_next = {};
       }
-      RSN_INLINE static void attach(llist_obj_mixin *head, llist_obj_mixin *rear, llist_obj_mixin *next) noexcept {
+      RSN_INLINE static void attach(collection_item_mixin *head, collection_item_mixin *rear, llist_obj_mixin *next) noexcept {
          if (RSN_LIKELY(head->_prev = next->_prev)) next->_prev->_next = head; else (next->_owner->_head = head)->_owner = next->_owner;
          (next->_prev = rear)->_next = next;
       }
-      RSN_INLINE static void detach(llist_obj_mixin *head, llist_obj_mixin *rear) noexcept {
+      RSN_INLINE static void detach(collection_item_mixin *head, collection_item_mixin *rear) noexcept {
          if (RSN_LIKELY(head->_prev))
             if (RSN_UNLIKELY(rear->_next))
                (head->_prev->_next = rear->_next)->_prev = head->_prev;
@@ -322,8 +314,7 @@ namespace rsn::lib {
 
    // Non-owning References to a Range of Values ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-   template<typename Begin, typename End = Begin> // TODO: maybe call it range_ref
-   class slice_ref { // generalized analog of llvm::ArrayRef
+   template<typename Begin, typename End = Begin> class range_ref { // generalized analog of llvm::ArrayRef
    public: // typedefs to imitate standard containers
       typedef Begin                                                    iterator, const_iterator;
       typedef typename std::iterator_traits<iterator>::value_type      value_type;
@@ -332,35 +323,35 @@ namespace rsn::lib {
       typedef typename std::iterator_traits<iterator>::difference_type difference_type;
       typedef std::make_unsigned_t<difference_type>                    size_type;
    public: // standard operations
-      slice_ref() = default; // + implicitly defaulted copy and move constructors and assignment operators
-      RSN_INLINE void swap(slice_ref &rhs) noexcept { using std::swap; swap(_begin, rhs._begin), swap(_end, rhs._end); }
+      range_ref() = default; // + implicitly defaulted copy and move constructors and assignment operators
+      RSN_INLINE void swap(range_ref &rhs) noexcept { using std::swap; swap(_begin, rhs._begin), swap(_end, rhs._end); }
    public: // miscellaneous constructors and assignment operators
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref(slice_ref<RhsBegin, RhsEnd> &rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref(range_ref<RhsBegin, RhsEnd> &rhs) noexcept
          : _begin(rhs._begin), _end(rhs._end) {}
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref(const slice_ref<RhsBegin, RhsEnd> &rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref(const range_ref<RhsBegin, RhsEnd> &rhs) noexcept
          : _begin(rhs._begin), _end(rhs._end) {}
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref(slice_ref<RhsBegin, RhsEnd> &&rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref(range_ref<RhsBegin, RhsEnd> &&rhs) noexcept
          : _begin(std::move(rhs._begin)), _end(std::move(rhs._end)) {}
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref(const slice_ref<RhsBegin, RhsEnd> &&rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref(const range_ref<RhsBegin, RhsEnd> &&rhs) noexcept
          : _begin(std::move(rhs._begin)), _end(std::move(rhs._end)) {}
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref &operator=(slice_ref<RhsBegin, RhsEnd> &rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref &operator=(range_ref<RhsBegin, RhsEnd> &rhs) noexcept
          { _begin = rhs._begin, _end = rhs._end; return *this; }
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref &operator=(const slice_ref<RhsBegin, RhsEnd> &rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref &operator=(const range_ref<RhsBegin, RhsEnd> &rhs) noexcept
          { _begin = rhs._begin, _end = rhs._end; return *this; }
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref &operator=(slice_ref<RhsBegin, RhsEnd> &&rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref &operator=(range_ref<RhsBegin, RhsEnd> &&rhs) noexcept
          { _begin = std::move(rhs._begin), _end = std::move(rhs._end); return *this; }
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref &operator=(const slice_ref<RhsBegin, RhsEnd> &&rhs) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref &operator=(const range_ref<RhsBegin, RhsEnd> &&rhs) noexcept
          { _begin = std::move(rhs._begin), _end = std::move(rhs._end); return *this; }
    public:
-      template<typename Rhs> RSN_INLINE slice_ref(Rhs &rhs) noexcept(noexcept(aux::_begin(rhs), aux::_end(rhs)))
+      template<typename Rhs> RSN_INLINE range_ref(Rhs &rhs) noexcept(noexcept(aux::_begin(rhs), aux::_end(rhs)))
          : _begin(aux::_begin(rhs)), _end(aux::_end(rhs)) {}
-      template<typename Rhs> RSN_INLINE slice_ref &operator=(Rhs &rhs) noexcept(noexcept(aux::_begin(rhs), aux::_end(rhs)))
+      template<typename Rhs> RSN_INLINE range_ref &operator=(Rhs &rhs) noexcept(noexcept(aux::_begin(rhs), aux::_end(rhs)))
          { _begin = aux::_begin(rhs), _end = aux::_end(rhs); return *this; }
    public:
-      template<typename Rhs> slice_ref(Rhs &&) = delete;
-      template<typename Rhs> slice_ref &operator=(Rhs &&) = delete;
+      template<typename Rhs> range_ref(Rhs &&) = delete;
+      template<typename Rhs> range_ref &operator=(Rhs &&) = delete;
    public:
-      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE slice_ref(RhsBegin &&_begin, RhsEnd &&_end) noexcept
+      template<typename RhsBegin, typename RhsEnd = RhsBegin> RSN_INLINE range_ref(RhsBegin &&_begin, RhsEnd &&_end) noexcept
          : _begin(std::forward<RhsBegin>(_begin)), _end(std::forward<RhsEnd>(_end)) {}
    public: // container-like access/iteration
       RSN_INLINE bool empty() const noexcept(noexcept(_end == _begin)) // gcc bug #52869 prior to gcc-9
@@ -387,33 +378,33 @@ namespace rsn::lib {
          { return drop_first_ex(); }
       RSN_INLINE auto drop_last() const noexcept(noexcept(drop_last_ex()))
          { return drop_last_ex(); }
-      RSN_INLINE slice_ref drop_first(size_type size) const noexcept(noexcept(_begin + (difference_type)1))
+      RSN_INLINE range_ref drop_first(size_type size) const noexcept(noexcept(_begin + (difference_type)1))
          { return {_begin + (difference_type)size, end()}; }
-      RSN_INLINE slice_ref drop_last(size_type size) const noexcept(noexcept(_end - (difference_type)1))
+      RSN_INLINE range_ref drop_last(size_type size) const noexcept(noexcept(_end - (difference_type)1))
          { return {begin(), _end - (difference_type)size}; }
-      RSN_INLINE slice_ref drop_first_ex(size_type size = 1) const noexcept(noexcept(std::next(begin())))
+      RSN_INLINE range_ref drop_first_ex(size_type size = 1) const noexcept(noexcept(std::next(begin())))
          { return {std::next(begin(), size), end()}; }
-      RSN_INLINE slice_ref drop_last_ex(size_type size = 1) const noexcept(noexcept(std::prev(end())))
+      RSN_INLINE range_ref drop_last_ex(size_type size = 1) const noexcept(noexcept(std::prev(end())))
          { return {begin(), std::prev(end(), size)}; }
       RSN_INLINE auto reverse() const noexcept
-         { return lib::slice_ref{rbegin(), rend()}; }
+         { return lib::range_ref{rbegin(), rend()}; }
    private: // internal representation
       Begin _begin; End _end;
-      template<typename, typename> friend class slice_ref;
+      template<typename, typename> friend class range_ref;
    };
    // Deduction guides
-   template<typename Rhs> slice_ref(Rhs &&) -> slice_ref<decltype(aux::_begin(std::declval<Rhs &>())), decltype(aux::_end(std::declval<Rhs &>()))>;
-   template<typename Begin, typename End> slice_ref(Begin, End) -> slice_ref<Begin, End>;
+   template<typename Rhs> range_ref(Rhs &&) -> range_ref<decltype(aux::_begin(std::declval<Rhs &>())), decltype(aux::_end(std::declval<Rhs &>()))>;
+   template<typename Begin, typename End> range_ref(Begin, End) -> range_ref<Begin, End>;
    // Non-member functions
    template<typename Begin, typename End = Begin>
-   RSN_INLINE inline void swap(slice_ref<Begin, End> &lhs, slice_ref<Begin, End> &rhs) noexcept
+   RSN_INLINE inline void swap(range_ref<Begin, End> &lhs, range_ref<Begin, End> &rhs) noexcept
       { lhs.swap(rhs); }
    template<typename LhsBegin, typename RhsBegin, typename LhsEnd = LhsBegin, typename RhsEnd = RhsBegin>
-   RSN_INLINE inline bool operator==(const slice_ref<LhsBegin, LhsEnd> &lhs, const slice_ref<RhsBegin, RhsEnd> &rhs)
+   RSN_INLINE inline bool operator==(const range_ref<LhsBegin, LhsEnd> &lhs, const range_ref<RhsBegin, RhsEnd> &rhs)
    noexcept(noexcept(lhs.begin() == rhs.begin() && lhs.end() == rhs.end()))
       { return lhs.begin() == rhs.begin() && lhs.end() == rhs.end(); }
    template<typename LhsBegin, typename RhsBegin, typename LhsEnd = LhsBegin, typename RhsEnd = RhsBegin>
-   RSN_INLINE inline bool operator!=(const slice_ref<LhsBegin, LhsEnd> &lhs, const slice_ref<RhsBegin, RhsEnd> &rhs)
+   RSN_INLINE inline bool operator!=(const range_ref<LhsBegin, LhsEnd> &lhs, const range_ref<RhsBegin, RhsEnd> &rhs)
    noexcept(noexcept(lhs.begin() != rhs.begin() || lhs.end() != rhs.end()))
       { return lhs.begin() != rhs.begin() || lhs.end() != rhs.end(); }
 
