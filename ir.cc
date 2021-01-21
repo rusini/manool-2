@@ -109,86 +109,57 @@ bool insn_switch_br::try_to_fold() {
    remove(); return true;
 }
 
-bool insn_call::try_to_fold() {
+bool insn_call::simplify() {
    if (RSN_LIKELY(!is<proc>(dest()))) return false;
    auto pr = as<proc>(dest());
 
    // integrate and expand the insn_entry
-   if (RSN_UNLIKELY(as<insn_entry>(pr->front()->front())->params().size() != params().size()))
-      insn_undefined::make(this);
+   if (RSN_UNLIKELY(as<insn_entry>(pr->head()->head())->params().size() != params().size()))
+      insn_oops::make(this);
    else
-   for (std::size_t sn = 0, size = params().size(); sn < size; ++sn) {
-      if (RSN_UNLIKELY(!as<insn_entry>(pr->front()->front())->params()[sn]->temp.vr))
-         as<insn_entry>(pr->front()->front())->params()[sn]->temp.vr = vreg::make(owner()->owner());
-      insn_mov::make(this, as<insn_entry>(pr->front()->front())->params()[sn]->temp.vr, std::move(params()[sn]));
-   }
+   for (std::size_t sn = 0, size = params().size(); sn < size; ++sn)
+      insn_mov::make(this, as<insn_entry>(pr->head()->head())->params()[sn], std::move(params()[sn]));
    // integrate the rest of entry BB
-   for (auto in: all_from(pr->front()->front()->next())) {
+   for (auto in = pr->front()->front()->next(); in; in = in->next())
       in->clone(this);
-      // fixup vreg references
-      for (auto &output: prev()->outputs()) {
-         if (RSN_UNLIKELY(!output->temp.vr)) output->temp.vr = vreg::make(owner()->owner());
-         output = output->temp.vr;
-      }
-      for (auto &input: prev()->inputs()) if (is<vreg>(input)) {
-         if (RSN_UNLIKELY(!as<vreg>(input)->temp.vr)) as<vreg>(input)->temp.vr = vreg::make(owner()->owner());
-         input = as<vreg>(input)->temp.vr;
-      }
-   }
 
    if (RSN_LIKELY(pr->size() == 1)) {
       // expand the insn_ret
       if (RSN_UNLIKELY(as<insn_ret>(prev())->results().size() != results().size()))
-         insn_undefined::make(prev());
+         insn_oops::make(prev());
       else
       for (std::size_t sn = 0, size = results().size(); sn < size; ++sn)
          insn_mov::make(prev(), std::move(results()[sn]), std::move(as<insn_ret>(prev())->results()[sn]));
-      prev()->remove();
+      prev()->eliminate();
    } else {
       pr->head()->temp.bb = owner();
       {  // split the BB at the insn_call
          auto bb = RSN_LIKELY(owner()->next()) ? bblock::make(owner()->next()) : bblock::make(owner()->owner());
-         for (auto in: all_from(this)) in->reattach(bb);
+         for (auto in: all(this, {})) in->reattach(bb);
       }
       // integrate the rest of BBs
-      for (auto bb: all_from(pr->head()->next())) {
+      for (auto bb = pr->head()->next(); bb; bb = bb->next()) {
          bb->temp.bb = bblock::make(owner());
          // integrate instructions
-         for (auto in: all(bb)) {
+         for (auto in = bb->head(); in; in = in->next())
             in->clone(owner()->prev());
-            // fixup vreg references
-            for (auto &output: owner()->prev()->back()->outputs()) {
-               if (RSN_UNLIKELY(!output->temp.vr)) output->temp.vr = vreg::make(owner()->owner());
-               output = output->temp.vr;
-            }
-            for (auto &input: owner()->prev()->back()->inputs()) if (is<vreg>(input)) {
-               if (RSN_UNLIKELY(!as<vreg>(input)->temp.vr)) as<vreg>(input)->temp.vr = vreg::make(owner()->owner());
-               input = as<vreg>(input)->temp.vr;
-            }
-         }
       }
 
-      for (auto bb: all(pr))
+      for (auto bb = pr->head(); bb; bb = bb->next())
       if (RSN_LIKELY(!is<insn_ret>(bb->temp.bb->back())))
          // fixup jump targets
-         for (auto &target: bb->temp.bb->back()->targets()) target = target->temp.bb;
+         for (auto &target: bb->temp.bb->rear()->targets()) target = target->temp.bb;
       else {
          // expand an insn_ret
-         if (RSN_UNLIKELY(as<insn_ret>(bb->temp.bb->back())->results.size() != results.size()))
-            insn_undefined::make(bb->temp.bb->back());
+         if (RSN_UNLIKELY(as<insn_ret>(bb->temp.bb->rear())->results.size() != results.size()))
+            insn_oops::make(bb->temp.bb->rear());
          else
          for (std::size_t sn = 0, size = results.size(); sn < size; ++sn)
-            insn_mov::make(bb->temp.bb->back(), results()[sn], std::move(as<insn_ret>(bb->temp.bb->back())->results()[sn]));
-         insn_jmp::make(bb->temp.bb->back(), owner());
-         bb->temp.bb->back()->remove();
+            insn_mov::make(bb->temp.bb->rear(), results()[sn], std::move(as<insn_ret>(bb->temp.bb->rear())->results()[sn]));
+         insn_jmp::make(bb->temp.bb->rear(), owner());
+         bb->temp.bb->rear()->eliminate();
       }
    }
 
-   // reset instrussive temporaries
-   for (auto bb: all(pr)) for (auto in: all(bb)) {
-      for (auto &output: in->outputs()) output->temp.vr = {};
-      for (auto &input: in->inputs()) if (is<vreg>(input)) as<vreg>(input)->temp.vr = {};
-   }
-
-   remove(); return true;
+   eliminate(); return true;
 }

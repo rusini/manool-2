@@ -255,7 +255,7 @@ namespace rsn::opt {
    };
 
    class bblock final: protected aux::node, // basic block (also used to specify a jump target)
-      public lib::collection_item_mixin<bblock>, public lib::collection_mixin<insn> {
+      public lib::collection_item_mixin<bblock, proc>, public lib::collection_mixin<insn, bblock> {
    public: // construction
       static auto make(proc *owner) { return new bblock(owner); } // construct and attach to the specified owner procedure at the end
       static auto make(bblock *next) { return new bblock(next); } // construct and attach to the owner procedure before the specified sibling basic block
@@ -282,7 +282,7 @@ namespace rsn::opt {
    RSN_INLINE inline proc::~proc() = default;
 
    class insn: protected aux::node, // IR instruction
-      public lib::collection_item_mixin<insn, bblock>
+      public lib::collection_item_mixin<insn, bblock> {
    protected: // constructors/destructors
       RSN_INLINE explicit insn(bblock *owner) noexcept: collection_item_mixin(owner) {} // attach to the specified owner basic block at the end
       RSN_INLINE explicit insn(insn *next) noexcept: collection_item_mixin(next) {}     // attach to the owner basic block before the specified sibling instruction
