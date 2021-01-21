@@ -255,7 +255,7 @@ namespace rsn::opt {
    };
 
    class bblock final: protected aux::node, // basic block (also used to specify a jump target)
-      public lib::collection_item_mixin<bblock, proc>, public lib::collection_mixin<insn, bblock> {
+      public lib::collection_item_mixin<bblock, proc>, public lib::collection_mixin<bblock, insn> {
    public: // construction
       static auto make(proc *owner) { return new bblock(owner); } // construct and attach to the specified owner procedure at the end
       static auto make(bblock *next) { return new bblock(next); } // construct and attach to the owner procedure before the specified sibling basic block
@@ -279,7 +279,7 @@ namespace rsn::opt {
       # undef RSN_OPT_TEMP_BBLOCK
       } temp;
    };
-   RSN_INLINE inline proc::~proc() = default;
+   RSN_NOINLINE inline proc::~proc() = default;
 
    class insn: protected aux::node, // IR instruction
       public lib::collection_item_mixin<insn, bblock> {
@@ -292,7 +292,7 @@ namespace rsn::opt {
    public: // copy-construction
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
-   public: // querying contents and instruction simplification
+   public: // querying contents and local transformation
       RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>                { return _outputs; }
       RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>    { return _outputs; }
       RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
@@ -316,7 +316,7 @@ namespace rsn::opt {
       # undef RSN_OPT_TEMP_INSN
       } temp;
    };
-   RSN_INLINE inline bblock::~bblock() = default;
+   RSN_NOINLINE inline bblock::~bblock() = default;
 
 } // namespace rsn::opt
 

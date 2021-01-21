@@ -1,6 +1,6 @@
 // ir.cc
 
-/*    Copyright (C) 2020 Alexey Protasov (AKA Alex or rusini)
+/*    Copyright (C) 2020, 2021 Alexey Protasov (AKA Alex or rusini)
 
    This is free software: you can redistribute it and/or modify it under the terms of the version 3 of the GNU General Public License
    as published by the Free Software Foundation (and only version 3).
@@ -15,7 +15,18 @@
 
 using namespace rsn::opt;
 
-bool insn_binop::try_to_fold() {
+bool rsn::opt::insn_binop::simplify() {
+   switch (op) {
+   default:
+      RSN_UNREACHABLE();
+   case _add:
+      if (is<imm_val>(lhs()) && !is<imm_val>(rhs()) || is<abs_imm>(lhs()) && !is<abs_imm>(rhs())) lhs().swap(rhs()); // canonicalization
+      insn_mov::make(this, std::move(dest), abs_imm::make(lhs + rhs));
+      break;
+   }
+
+
+
    if (RSN_LIKELY(!is<abs_imm>(lhs())) || RSN_LIKELY(!is<abs_imm>(rhs()))) return false;
    auto lhs = as<abs_imm>(insn_binop::lhs())->value, rhs = as<abs_imm>(insn_binop::rhs())->value;
 
