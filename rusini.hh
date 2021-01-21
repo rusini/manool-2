@@ -36,13 +36,13 @@ namespace rsn::lib {
 
    // Utilities for Raw and RC-ing Pointers ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-   class noncopyable { // may occasionally cost a few bytes of wasted space
-   public:
-      noncopyable(const noncopyable &) = delete;
-      noncopyable &operator=(const noncopyable &) = delete;
+   class noncopyable { // may cost a few bytes of wasted space (under multiple inheritance)
    protected:
       noncopyable() = default;
       ~noncopyable() = default;
+   public:
+      noncopyable(const noncopyable &) = delete;
+      noncopyable &operator=(const noncopyable &) = delete;
    };
    // Downcast for raw pointers to non-copyables
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable, Src>, bool> is(Src *src) noexcept
@@ -161,22 +161,24 @@ namespace rsn::lib {
       typedef collection_mixin<Obj, Owner> *owner_mixin;
    };
 
-   // Stable-iteration helpers
-   template<typename Obj, typename Owner> lib::small_vec<Obj *> all(collection_item_mixin<Obj, Owner> *head, collection_item_mixin<Obj, Owner> *rear) {
-      std::size_t size = 0; for (auto it = head; it != rear; it = it->next()) ++size;
+   // Helpers for "stable iteration"
+   template<typename Obj, typename Owner> auto all(collection_mixin<Obj, Owner> *owner) {
+      return all(owner.head(), {});
+   }
+   template<typename Obj, typename Owner> auto all(collection_item_mixin<Obj, Owner> *begin, collection_item_mixin<Obj, Owner> *end) {
+      std::size_t size{}; for (auto it = begin; it != end; it = it->next()) ++size;
       return [size]{
-         lib::small_vec<Obj *> res(size); for (auto it = head; it != rear; it = it->next()) res.push_back(static_cast<Obj *>(it));
+         lib::small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
          return res;
       }();
    }
-   template<typename Obj, typename Owner> lib::small_vec<Obj *> all(collection_mixin<Obj, Owner> *collection) {
-      return all(collection.head(), {});
+   template<typename Obj, typename Owner> auto rev(collection_mixin<Obj, Owner> *owner) {
+      return rev({}, owner.rear());
    }
-   template<typename Obj, typename Owner> auto rev(collection_item_mixin<Obj, Owner> *from, collection_item_mixin<Obj, Owner> *to)
-      ->std::enable_if_t<std::is_base_of_v<collection_item_mixin<Obj, Owner>, Obj>, lib::small_vec<Obj *>> {
-      std::size_t size = 0; for (auto it = from; it != to; it = it->collection_item_mixin<Obj, Owner>::prev()) ++size;
+   template<typename Obj, typename Owner> auto rev(collection_item_mixin<Obj, Owner> *end, collection_item_mixin<Obj, Owner> *begin) {
+      std::size_t size{}; for (auto it = begin; it != end; it = it->prev()) ++size;
       return [size]{
-         lib::small_vec<Obj *> res(size); for (auto it = from; it != to; it = it->collection_item_mixin<Obj, Owner>::prev()) res.push_back(it);
+         lib::small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->prev()) res.emplace_back(static_cast<Obj *>(it));
          return res;
       }();
    }
