@@ -329,7 +329,7 @@ namespace rsn::opt {
 
    class insn_br final: public insn {
    public: // public data members
-      const enum { _beq, _bult, _bule, _bslt, _bsle } op;
+      const enum { _beq, _bult, _bslt } op;
    public: // construction/destruction
       RSN_INLINE static auto make( bblock *owner, decltype(op) op,
          lib::smart_ptr<operand> lhs, lib::smart_ptr<operand> rhs, bblock *dest1, bblock *dest2 )
@@ -337,15 +337,20 @@ namespace rsn::opt {
       RSN_INLINE static auto make(insn *next, decltype(op) op,
          lib::smart_ptr<operand> lhs, lib::smart_ptr<operand> rhs, bblock *dest1, bblock *dest2 )
          { return new insn_br(next, op,  std::move(lhs), std::move(rhs), std::move(dest1), std::move(dest2)); }
-   # define RSN_M1(OP) \
+   # define RSN_M1(OP, OP_, LHS, RHS, DEST1, DEST2) \
       RSN_INLINE static auto make##OP(bblock *owner, \
          lib::smart_ptr<operand> lhs, lib::smart_ptr<operand> rhs, bblock *dest1, bblock *dest2 ) \
-         { return new insn_br(owner, OP, std::move(lhs), std::move(rhs), std::move(dest1), std::move(dest2)); } \
+         { return new insn_br(owner, OP_, std::move(LHS), std::move(RHS), std::move(DEST1), std::move(DEST2)); } \
       RSN_INLINE static auto make##OP(insn *next, \
          lib::smart_ptr<operand> lhs, lib::smart_ptr<operand> rhs, bblock *dest1, bblock *dest2 ) \
-         { return new insn_br(next, OP,  std::move(lhs), std::move(rhs), std::move(dest1), std::move(dest2)); } \
+         { return new insn_br(next, OP_,  std::move(LHS), std::move(RHS), std::move(DEST1), std::move(DEST2)); } \
    // end # define RSN_M1(OP)
-      RSN_M1(_beq) RSN_M1(_bult) RSN_M1(_bule) RSN_M1(_bslt) RSN_M1(_bsle)
+      RSN_M1(_beq, _beq, lhs, rhs, dest1, dest2)
+      RSN_M1(_bne, _beq, lhs, rhs, dest2, dest1)
+      RSN_M1(_bult, _bult, lhs, rhs, dest1, dest2) RSN_M1(_bslt, _bslt, lhs, rhs, dest1, dest2)
+      RSN_M1(_bule, _bult, rhs, lhs, dest2, dest1) RSN_M1(_bsle, _bslt, rhs, lhs, dest2, dest1)
+      RSN_M1(_bugt, _bult, rhs, lhs, dest1, dest2) RSN_M1(_bsgt, _bslt, rhs, lhs, dest1, dest2)
+      RSN_M1(_buge, _bult, lhs, rhs, dest2, dest1) RSN_M1(_bsge, _bslt, lhs, rhs, dest2, dest1)
    # undef RSN_M1
    public:
       insn_br *clone(bblock *owner) const override { return new insn_br(owner, op, _inputs, _targets); }
@@ -379,7 +384,7 @@ namespace rsn::opt {
    public: // debugging
       void dump() const noexcept override {
          static constexpr const char *mnemo[]
-            {"beq", "bult", "bule", "bslt", "bsle"};
+            {"beq", "bult", "bslt"};
          log << mnemo[op] << ' ' << lhs() << ", " << rhs() << " to " << dest1() << ", " << dest2();
       }
    # endif // # if RSN_USE_DEBUG
