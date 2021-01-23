@@ -44,7 +44,7 @@ namespace rsn::opt {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_entry( Loc loc,
-         const declype(_outputs) &outputs )
+         const decltype(_outputs) &outputs )
          : insn(loc), _outputs(outputs) {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
@@ -72,13 +72,13 @@ namespace rsn::opt {
       std::vector<lib::smart_ptr<operand>> _inputs;
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_ret( Loc loc,
-         std::vector<lib::smart_ptr<vreg>> &&results ) noexcept
+         std::vector<lib::smart_ptr<operand>> &&results ) noexcept
          : insn(loc), _inputs(std::move(results)) {
          _inputs.shrink_to_fit();
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_ret( Loc loc,
-         const declype(_inputs) &inputs )
+         const decltype(_inputs) &inputs )
          : insn(loc), _inputs(inputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
@@ -112,15 +112,15 @@ namespace rsn::opt {
       std::vector<lib::smart_ptr<vreg>> _outputs;
       std::vector<lib::smart_ptr<operand>> _inputs;
    private: // implementation helpers
-      template<typename Pos> RSN_INLINE explicit insn_call( Loc loc,
-         std::vector<lib::smart_ptr<vreg>> results &&results, lib::smart_ptr<operand> &&dest, std::vector<lib::smart_ptr<operand>> &&params ) noexcept
+      template<typename Loc> RSN_INLINE explicit insn_call( Loc loc,
+         std::vector<lib::smart_ptr<vreg>> &&results, lib::smart_ptr<operand> &&dest, std::vector<lib::smart_ptr<operand>> &&params ) noexcept
          : insn(loc), _outputs(std::move(results)), _inputs(std::move(params)) {
          _inputs.emplace_back(std::move(dest));
          _outputs.shrink_to_fit(), _inputs.shrink_to_fit();
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_call( Loc loc,
-         const declype(_outputs) &outputs, const declype(_inputs) &inputs )
+         const decltype(_outputs) &outputs, const decltype(_inputs) &inputs )
          : insn(loc), _outputs(outputs), _inputs(inputs) {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
@@ -156,7 +156,7 @@ namespace rsn::opt {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_mov( Loc loc,
-         const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
+         const decltype(_outputs) &outputs, const decltype(_inputs) &inputs ) noexcept
          : insn(loc), _outputs(outputs), _inputs(inputs) {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
@@ -192,7 +192,7 @@ namespace rsn::opt {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_load( Loc loc,
-         const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
+         const decltype(_outputs) &outputs, const decltype(_inputs) &inputs ) noexcept
          : insn(loc), _outputs(outputs), _inputs(inputs) {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
@@ -227,7 +227,7 @@ namespace rsn::opt {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_store( Loc loc,
-         const declype(_inputs) &inputs ) noexcept
+         const decltype(_inputs) &inputs ) noexcept
          : insn(loc), _inputs(inputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
@@ -276,11 +276,11 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
          lib::smart_ptr<vreg> &&dest, lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs ) noexcept
-         : insn(loc), op(op), _outputs{std::move(dest)}, _inputs{std::move(lhs)), rhs(std::move(rhs)} {
+         : insn(loc), op(op), _outputs{std::move(dest)}, _inputs{std::move(lhs), std::move(rhs)} {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
-         const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
+         const decltype(_outputs) &outputs, const decltype(_inputs) &inputs ) noexcept
          : insn(loc), op(op), _outputs(outputs), _inputs(inputs) {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
@@ -317,7 +317,7 @@ namespace rsn::opt {
          insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_jmp( Loc loc,
-         const declype(_targets) &targets ) noexcept
+         const decltype(_targets) &targets ) noexcept
          : insn(loc), _targets(targets) {
          insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
@@ -372,11 +372,11 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
          lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs, bblock *&&dest1, bblock *&&dest2 )
-         : insn(loc), op(op), _inputs{std::move(lhs), std::move(rhs)}, _targets{std::move(dest1)), rhs(std::move(dest2)} {
+         : insn(loc), op(op), _inputs{std::move(lhs), std::move(rhs)}, _targets{std::move(dest1), std::move(dest2)} {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
-         const declype(_inputs) &inputs, const declype(_targets) &targets ) noexcept
+         const decltype(_inputs) &inputs, const decltype(_targets) &targets ) noexcept
          : insn(loc), op(op), _inputs(inputs), _targets(targets) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
@@ -419,7 +419,7 @@ namespace rsn::opt {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_switch_br( Loc loc,
-         const declype(_inputs) &inputs, const declype(_targets) &targets ) noexcept
+         const decltype(_inputs) &inputs, const decltype(_targets) &targets ) noexcept
          : insn(loc), _inputs(inputs), _targets(targets) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
@@ -439,9 +439,6 @@ namespace rsn::opt {
       insn_oops *clone(bblock *owner) const override { return new insn_oops(owner); }
       insn_oops *clone(insn *next) const override { return new insn_oops(next); }
    private: // implementation helpers
-      template<typename Loc> RSN_INLINE explicit insn_oops(Loc loc) noexcept
-         : insn(loc) {
-      }
       template<typename Loc> RSN_INLINE explicit insn_oops(Loc loc) noexcept
          : insn(loc) {
       }

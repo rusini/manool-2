@@ -50,10 +50,19 @@ namespace rsn::lib {
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable, Src>, Dest *> as(Src *src) noexcept
       { return static_cast<Dest *>(src); }
 
-   class smart_rc;
+   template<typename> class smart_ptr;
+
+   class smart_rc: noncopyable {
+   protected:
+      smart_rc() = default;
+      ~smart_rc() = default;
+   private:
+      long rc = 1;
+      template<typename> friend class smart_ptr;
+   };
 
    template<typename Obj> class smart_ptr { // simple, intrussive, and MT-unsafe analog of std::shared_ptr
-      static_assert(std::is_base_of_v<smart_rc, Obj>);
+      //static_assert(std::is_base_of_v<smart_rc, Obj>);
    public: // standard operations
       smart_ptr() = default;
       RSN_INLINE smart_ptr(const smart_ptr &rhs) noexcept: rep(rhs) { retain(); }
@@ -90,15 +99,6 @@ namespace rsn::lib {
       { return as<Dest>(&*src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>>
       as_smart(const smart_ptr<Src> &src) noexcept { return src.retain(), smart_ptr{as<Dest>(src)}; }
-
-   class smart_rc: noncopyable {
-   protected:
-      smart_rc() = default;
-      ~smart_rc() = default;
-   private:
-      long rc = 1;
-      template<typename> friend class smart_ptr;
-   };
 
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -256,8 +256,8 @@ namespace rsn::lib {
    template<typename Obj, typename Owner> class collection_item_mixin;
 
    template<typename Owner, typename Obj> class collection_mixin: noncopyable { // an object that owns a varying number of other objects (pointing to the owner)
-      static_assert(std::is_base_of_v<collection_mixin, Owner>);                // Owner must be actually *the only* derived class of collection_mixin<Owner, Obj>
-      static_assert(std::is_base_of_v<collection_item_mixin<Obj, Owner>, Obj>); // Obj must be actually *the only* derived class of collection_item_mixin<Obj, Owner>
+      //static_assert(std::is_base_of_v<collection_mixin, Owner>);                // Owner must be actually *the only* derived class of collection_mixin<Owner, Obj>
+      //static_assert(std::is_base_of_v<collection_item_mixin<Obj, Owner>, Obj>); // Obj must be actually *the only* derived class of collection_item_mixin<Obj, Owner>
    protected: // constructors/destructors
       collection_mixin() = default;
       ~collection_mixin() { while (rear()) ((collection_item_mixin<Obj, Owner> *)rear())->eliminate(); }
@@ -272,8 +272,8 @@ namespace rsn::lib {
    };
 
    template<typename Obj, typename Owner> class collection_item_mixin: noncopyable { // objects owned by a collection (which are organized in a linked list)
-      static_assert(std::is_base_of_v<collection_item_mixin, Obj>);          // Obj must be actually *the only* derived class of collection_item_mixin<Obj, Owner>
-      static_assert(std::is_base_of_v<collection_mixin<Owner, Obj>, Owner>); // Owner must be actually *the only* derived class of collection_mixin<Owner, Obj>
+      //static_assert(std::is_base_of_v<collection_item_mixin, Obj>);          // Obj must be actually *the only* derived class of collection_item_mixin<Obj, Owner>
+      //static_assert(std::is_base_of_v<collection_mixin<Owner, Obj>, Owner>); // Owner must be actually *the only* derived class of collection_mixin<Owner, Obj>
    protected: // constructors/destructors
       RSN_INLINE explicit collection_item_mixin(Owner *owner) noexcept: _owner(owner) { attach(); }                    // attach to the specified owner at the end
       RSN_INLINE explicit collection_item_mixin(Obj *next) noexcept: _owner(obj_mixin(next)->_owner) { attach(next); } // attach to the owner before the spec. sibling
@@ -299,11 +299,11 @@ namespace rsn::lib {
       typedef collection_mixin<Owner, Obj> *owner_mixin;
    private:
       RSN_INLINE void detach() noexcept {
-         (RSN_LIKELY(_prev) ? obj_mixin(prev)->_next : owner_mixin(_owner)->_head) = _next;
-         (RSN_LIKELY(_next) ? obj_mixin(next)->_prev : owner_mixin(_owner)->_rear) = _prev;
+         (RSN_LIKELY(_prev) ? obj_mixin(_prev)->_next : owner_mixin(_owner)->_head) = _next;
+         (RSN_LIKELY(_next) ? obj_mixin(_next)->_prev : owner_mixin(_owner)->_rear) = _prev;
       }
       RSN_INLINE void attach() noexcept {
-         owner_type(_owner)->_rear = (RSN_LIKELY(_prev = owner_mixin(_owner)->_rear) ? obj_mixin(_prev)->_next : owner_mixin(_owner)->_head) = static_cast<Obj *>(this);
+         owner_mixin(_owner)->_rear = (RSN_LIKELY(_prev = owner_mixin(_owner)->_rear) ? obj_mixin(_prev)->_next : owner_mixin(_owner)->_head) = static_cast<Obj *>(this);
          _next = {};
       }
       RSN_INLINE void attach(Obj *next) noexcept {
@@ -314,7 +314,7 @@ namespace rsn::lib {
 
    // Helpers for "stable iteration"
    template<typename Obj, typename Owner> RSN_INLINE auto all(collection_mixin<Obj, Owner> *owner) {
-      return all(owner.head(), {});
+      return all(owner->head(), {});
    }
    template<typename Obj, typename Owner> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, decltype(nullptr)) {
       std::size_t size{}; for (auto it = begin; it; it = it->next()) ++size;
@@ -327,7 +327,7 @@ namespace rsn::lib {
       return res;
    }
    template<typename Obj, typename Owner> auto rev(collection_mixin<Obj, Owner> *owner) { // in rev(erse) direction
-      return rev({}, owner.rear());
+      return rev({}, owner->rear());
    }
    template<typename Obj, typename Owner> auto rev(decltype(nullptr) *, collection_item_mixin<Obj, Owner> *begin) {
       std::size_t size{}; for (auto it = begin; it; it = it->prev()) ++size;

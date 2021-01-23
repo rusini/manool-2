@@ -70,53 +70,20 @@ namespace rsn::opt {
       };
    } // namespace aux
 
-   // Iteration Helpers ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-   template<typename Obj> RSN_NOINLINE auto all(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<decltype(ptr->head())>>
-      { decltype(all(ptr)) res(ptr->count()); for (auto _ptr = ptr->head(); _ptr; _ptr = _ptr->next()) res.push_back(_ptr); return res; }
-   template<typename Obj> RSN_NOINLINE auto rev(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<decltype(ptr->tail())>>
-      { decltype(all(ptr)) res(ptr->count()); for (auto _ptr = ptr->tail(); _ptr; _ptr = _ptr->prev()) res.push_back(_ptr); return res; }
-
-   template<typename Obj> RSN_NOINLINE auto all_after(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<decltype(ptr->next())>>
-      { decltype(all_after(ptr)) res(ptr->owner()->count()); for (auto _ptr = ptr->next(); _ptr; _ptr = _ptr->next()) res.push_back(_ptr); return res; }
-   template<typename Obj> RSN_NOINLINE auto rev_after(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<decltype(ptr->prev())>>
-      { decltype(rev_after(ptr)) res(ptr->owner()->count()); for (auto _ptr = ptr->prev(); _ptr; _ptr = _ptr->prev()) res.push_back(_ptr); return res; }
-
-   template<typename Obj> RSN_NOINLINE auto all_from(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<decltype(ptr->next())>>
-      { decltype(all_from(ptr)) res(ptr->owner()->count()); decltype(ptr->next()) _ptr = ptr; do res.push_back(_ptr), _ptr = _ptr->next(); while (_ptr); return res; }
-   template<typename Obj> RSN_NOINLINE auto rev_from(Obj *ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<decltype(ptr->prev())>>
-      { decltype(rev_from(ptr)) res(ptr->owner()->count()); decltype(ptr->prev()) _ptr = ptr; do res.push_back(_ptr), _ptr = _ptr->prev(); while (_ptr); return res; }
-
-   template<typename Obj> RSN_NOINLINE auto all(const lib::smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(all(&*ptr))>
-      { return all(&*ptr); }
-   template<typename Obj> RSN_NOINLINE auto rev(const lib::smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(rev(&*ptr))>
-      { return rev(&*ptr); }
-
-   template<typename Obj> RSN_NOINLINE auto all_after(const lib::smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(all_after(&*ptr))>
-      { return all_after(&*ptr); }
-   template<typename Obj> RSN_NOINLINE auto rev_after(const lib::smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(rev_after(&*ptr))>
-      { return rev_after(&*ptr); }
-
-   template<typename Obj> RSN_NOINLINE auto all_from(const lib::smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(all_from(&*ptr))>
-      { return all_from(&*ptr); }
-   template<typename Obj> RSN_NOINLINE auto rev_from(const lib::smart_ptr<Obj> &ptr)->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, decltype(rev_from(&*ptr))>
-      { return rev_from(&*ptr); }
-
    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    class operand: protected aux::node, lib::smart_rc { // data operand of "infinite" width (absolute, relocatable, virtual register, etc.)... excluding jump targets
-      long rc = 1;
       operand() = default;
       virtual ~operand() = 0;
       template<typename> friend class lib::smart_ptr;
       friend imm_val; // descendant
       friend vreg;    // ditto
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       virtual void dump() const noexcept = 0;
    private:
       virtual void dump_ref() const noexcept = 0;
-      friend struct log;
+      friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
    RSN_INLINE inline operand::~operand() = default;
@@ -127,10 +94,6 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
       friend abs_imm; // descendant
       friend rel_imm; // ditto
-   # if RSN_USE_DEBUG
-   private:
-      friend struct log;
-   # endif // # if RSN_USE_DEBUG
    };
    RSN_INLINE inline imm_val::~imm_val() = default;
 
@@ -144,11 +107,11 @@ namespace rsn::opt {
       ~abs_imm() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { std::fprintf(stderr, "N%u = abs #%lld=0x%llX\n\n", sn, (long long)value, value); }
    private:
       void dump_ref() const noexcept override { std::fprintf(stderr, "N%u#%lld=0x%llX", sn, (long long)value, value); }
-      friend struct log;
+      friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
 
@@ -162,10 +125,6 @@ namespace rsn::opt {
       friend ext_rel; // descendant
       friend proc;    // ditto
       friend data;    // ditto
-   # if RSN_USE_DEBUG
-   private:
-      friend struct log;
-   # endif // # if RSN_USE_DEBUG
    };
    RSN_INLINE inline rel_imm::~rel_imm() = default;
 
@@ -177,16 +136,16 @@ namespace rsn::opt {
       ~ext_rel() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { std::fprintf(stderr, "X%u = extern $0x%016llX%016llX\n\n", sn, id.second, id.first); }
    private:
       void dump_ref() const noexcept override { std::fprintf(stderr, "X%u$0x%016llX%016llX", sn, id.second, id.first); }
-      friend struct log;
+      friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
 
    class proc final: public rel_imm, // procedure, AKA function, subroutine, etc. (translation unit)
-      public lib::collection_mixin<bblock> {
+      public lib::collection_mixin<proc, bblock> {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
    private: // implementation helpers
@@ -194,16 +153,16 @@ namespace rsn::opt {
       ~proc() override;
       template<typename> friend class lib::smart_ptr;
    # ifdef RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override;
    private:
       void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%016llX%016llX", sn, id.second, id.first); }
-      friend struct log;
+      friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_PROC
-      # include "opt-temp-tcc"
+      # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_PROC
       } temp;
    };
@@ -218,7 +177,7 @@ namespace rsn::opt {
       ~data() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override {
          std::fprintf(stderr, "D%u = data $0x%016llX%016llX as\n", sn, id.second, id.first);
          for (auto &&it: values) log << "  " << it << '\n';
@@ -226,7 +185,7 @@ namespace rsn::opt {
       }
    private:
       void dump_ref() const noexcept override { std::fprintf(stderr, "D%u$0x%016llX%016llX", sn, id.second, id.first); }
-      friend struct log;
+      friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
 
@@ -234,20 +193,20 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make() { return lib::smart_ptr<vreg>::make(); }
    private: // implementation helpers
-      RSN_INLINE explicit vreg(proc *owner) noexcept: _owner(owner) {}
+      RSN_INLINE explicit vreg() noexcept {}
       ~vreg() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg ", sn), log << '(' << owner() << ')', std::fputs("\n\n", stderr); }
    private:
       void dump_ref() const noexcept override { std::fprintf(stderr, "R%u", sn); }
-      friend struct log;
+      friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_VREG
-      # include "opt-temp-tcc"
+      # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_VREG
       } temp;
    };
@@ -290,15 +249,15 @@ namespace rsn::opt {
    public: // copy-construction
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
-   public: // querying contents and local transformation
-      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>                { return _outputs; }
-      RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>    { return _outputs; }
-      RSN_INLINE auto inputs () noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
-      RSN_INLINE auto inputs () const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
-      RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                             { return _targets; }
-      RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                 { return _targets; }
-   public:
-      RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification (e.g. x + 0 -> x), and canonicalization (e.g. 0 == x -> x == 0)
+   public: // querying contents
+      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>               { return _outputs; }
+      RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>   { return _outputs; }
+      RSN_INLINE auto inputs() noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
+      RSN_INLINE auto inputs() const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
+      RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                            { return _targets; }
+      RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                { return _targets; }
+   public: // miscellaneous
+      RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification, and canonicalization
    protected: // internal representation
       lib::range_ref<lib::smart_ptr<vreg> *> _outputs{nullptr, nullptr};   // the compiler is to eliminate redundant stores in initialization
       lib::range_ref<lib::smart_ptr<operand> *> _inputs{nullptr, nullptr}; // ditto
@@ -306,11 +265,11 @@ namespace rsn::opt {
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
-   # endif // # if RSN_USE_DEBUG
+   # endif
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_INSN
-      # include "opt-temp-tcc"
+      # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_INSN
       } temp;
    };

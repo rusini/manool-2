@@ -4,6 +4,7 @@
 
 
 int main() {
+# if 0
    namespace opt = rsn::opt;
 
    auto pr_int = opt::proc::make({123456, 1001});
@@ -48,6 +49,7 @@ int main() {
 
    pr_int->dump();
    pr_fact->dump();
+# endif
 
    return 0;
 }
