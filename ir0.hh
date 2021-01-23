@@ -61,9 +61,7 @@ namespace rsn::opt {
                { node->dump_ref(); return *this; }
             template<typename Node> const auto &operator<<(const lib::smart_ptr<Node> &node) const noexcept
                { node->dump_ref(); return *this; }
-            template<typename Node> const auto &operator<<(lib::range_ref<Node **> nodes) const noexcept
-               { bool flag{}; for (auto &it: nodes) { if (flag) std::fputs(", ", stderr); it->dump_ref(), flag = true; } return *this; }
-            template<typename Node> const auto &operator<<(lib::range_ref<lib::smart_ptr<Node> *> nodes) const noexcept
+            template<typename Begin, typename End = Begin> const auto &operator<<(lib::range_ref<Begin, End> nodes) const noexcept
                { bool flag{}; for (auto &it: nodes) { if (flag) std::fputs(", ", stderr); it->dump_ref(), flag = true; } return *this; }
          } log{};
       private:

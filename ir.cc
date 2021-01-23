@@ -13,6 +13,8 @@
 
 # include "ir.hh"
 
+# include <limits> // numeric_limits
+
 using namespace rsn::opt;
 
 bool rsn::opt::insn_binop::simplify() {

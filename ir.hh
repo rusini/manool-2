@@ -1,6 +1,6 @@
 // ir.hh
 
-/*    Copyright (C) 2020 Alexey Protasov (AKA Alex or rusini)
+/*    Copyright (C) 2020, 2021 Alexey Protasov (AKA Alex or rusini)
 
    This is free software: you can redistribute it and/or modify it under the terms of the version 3 of the GNU General Public License
    as published by the Free Software Foundation (and only version 3).
@@ -13,8 +13,6 @@
 
 # ifndef RSN_INCLUDED_IR
 # define RSN_INCLUDED_IR
-
-# include <limits> // numeric_limits
 
 # include "ir0.hh"
 
@@ -34,8 +32,8 @@ namespace rsn::opt {
       RSN_NOINLINE insn_entry *clone(bblock *owner) const override { return new insn_entry(owner, _outputs); }
       RSN_NOINLINE insn_entry *clone(insn *next) const override { return new insn_entry(next, _outputs); }
    public: // data operands and jump targets
-      auto params() noexcept       { return lib::range_ref{&*_outputs.begin(), &*_outputs.end()}; }
-      auto params() const noexcept { return lib::range_ref{&*_outputs.begin(), &*_outputs.end()}; }
+      RSN_INLINE auto params() noexcept       { return lib::range_ref{_outputs.begin(), _outputs.end()}; }
+      RSN_INLINE auto params() const noexcept { return lib::range_ref{_outputs.begin(), _outputs.end()}; }
    public: // internal representation
       std::vector<lib::smart_ptr<vreg>> _outputs;
    private: // implementation helpers
@@ -43,15 +41,15 @@ namespace rsn::opt {
          std::vector<lib::smart_ptr<vreg>> &&params ) noexcept
          : insn(loc), _outputs(std::move(params)) {
          _outputs.shrink_to_fit();
-         insn::_outputs = _outputs; insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_entry( Loc loc,
          const declype(_outputs) &outputs )
          : insn(loc), _outputs(outputs) {
-         insn::_outputs = _outputs; insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { log << params() << (params().empty() ? "" : " := ") << "entry"; }
    # endif
    };
@@ -59,17 +57,17 @@ namespace rsn::opt {
    class insn_ret final: public insn {
    public: // construction/destruction
       RSN_INLINE static auto make( bblock *owner,
-         lib::smart_ptr<operand> results )
+         std::vector<lib::smart_ptr<operand>> results )
          { return new insn_ret(owner, std::move(results)); }
       RSN_INLINE static auto make( insn *next,
-         lib::smart_ptr<operand> results )
+         std::vector<lib::smart_ptr<operand>> results )
          { return new insn_ret(next,  std::move(results)); }
    public:
       RSN_NOINLINE insn_ret *clone(bblock *owner) const override { return new insn_ret(owner, _inputs); }
       RSN_NOINLINE insn_ret *clone(insn *next) const override { return new insn_ret(next, _inputs); }
    public: // data operands and jump targets
-      auto results() noexcept       { return lib::range_ref{&*_inputs.begin(), &*_inputs.end()}; }
-      auto results() const noexcept { return lib::range_ref{&*_inputs.begin(), &*_inputs.end()}; }
+      RSN_INLINE auto results() noexcept       { return lib::range_ref{_inputs.begin(), _inputs.end()}; }
+      RSN_INLINE auto results() const noexcept { return lib::range_ref{_inputs.begin(), _inputs.end()}; }
    public: // internal representation
       std::vector<lib::smart_ptr<operand>> _inputs;
    private: // implementation helpers
@@ -77,15 +75,15 @@ namespace rsn::opt {
          std::vector<lib::smart_ptr<vreg>> &&results ) noexcept
          : insn(loc), _inputs(std::move(results)) {
          _inputs.shrink_to_fit();
-         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_ret( Loc loc,
          const declype(_inputs) &inputs )
          : insn(loc), _inputs(inputs) {
-         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { log << "ret" << (results().empty() ? "" : " ") << results(); }
    # endif
    };
@@ -102,14 +100,14 @@ namespace rsn::opt {
       RSN_NOINLINE insn_call *clone(bblock *owner) const override { return new insn_call(owner, _outputs, _inputs); }
       RSN_NOINLINE insn_call *clone(insn *next) const override { return new insn_call(next, _outputs, _inputs); }
    public: // data operands and jump targets
-      auto  results() noexcept       { return lib::range_ref{&*_outputs.begin(), &*_outputs.end()}; }
-      auto  results() const noexcept { return lib::range_ref{&*_outputs.begin(), &*_outputs.end()}; }
-      auto &dest() noexcept          { return lib::range_ref{&*_inputs.begin(),  &*_inputs.end()}.last(); }
-      auto &dest() const noexcept    { return lib::range_ref{&*_inputs.begin(),  &*_inputs.end()}.last(); }
-      auto  params() noexcept        { return lib::range_ref{&*_inputs.begin(),  &*_inputs.end()}.drop_last(); }
-      auto  params() const noexcept  { return lib::range_ref{&*_inputs.begin(),  &*_inputs.end()}.drop_last(); }
+      RSN_INLINE auto  results() noexcept       { return lib::range_ref{_outputs.begin(), _outputs.end()}; }
+      RSN_INLINE auto  results() const noexcept { return lib::range_ref{_outputs.begin(), _outputs.end()}; }
+      RSN_INLINE auto &dest() noexcept          { return lib::range_ref{_inputs.begin(),  _inputs.end()}.last(); }
+      RSN_INLINE auto &dest() const noexcept    { return lib::range_ref{_inputs.begin(),  _inputs.end()}.last(); }
+      RSN_INLINE auto  params() noexcept        { return lib::range_ref{_inputs.begin(),  _inputs.end()}.drop_last(); }
+      RSN_INLINE auto  params() const noexcept  { return lib::range_ref{_inputs.begin(),  _inputs.end()}.drop_last(); }
    public: // miscellaneous
-      bool try_to_fold() override;
+      bool simplify() override;
    public: // internal representation
       std::vector<lib::smart_ptr<vreg>> _outputs;
       std::vector<lib::smart_ptr<operand>> _inputs;
@@ -117,17 +115,17 @@ namespace rsn::opt {
       template<typename Pos> RSN_INLINE explicit insn_call( Loc loc,
          std::vector<lib::smart_ptr<vreg>> results &&results, lib::smart_ptr<operand> &&dest, std::vector<lib::smart_ptr<operand>> &&params ) noexcept
          : insn(loc), _outputs(std::move(results)), _inputs(std::move(params)) {
-         _inputs.push_back(std::move(dest));
+         _inputs.emplace_back(std::move(dest));
          _outputs.shrink_to_fit(), _inputs.shrink_to_fit();
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_call( Loc loc,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs )
          : insn(loc), _outputs(outputs), _inputs(inputs) {
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { log << results() << (results().empty() ? "" : " := ") << "call " << dest() << " ( " << params() << " )"; }
    # endif
    };
@@ -144,10 +142,10 @@ namespace rsn::opt {
       insn_mov *clone(bblock *owner) const override { return new insn_mov(owner, _outputs, _inputs); }
       insn_mov *clone(insn *next) const override { return new insn_mov(next, _outputs, _inputs); }
    public: // data operands and jump targets
-      auto &dest() noexcept       { return _outputs[0]; }
-      auto &dest() const noexcept { return _outputs[0]; }
-      auto &src() noexcept        { return _inputs [0]; }
-      auto &src() const noexcept  { return _inputs [0]; }
+      RSN_INLINE auto &dest() noexcept       { return _outputs[0]; }
+      RSN_INLINE auto &dest() const noexcept { return _outputs[0]; }
+      RSN_INLINE auto &src() noexcept        { return _inputs [0]; }
+      RSN_INLINE auto &src() const noexcept  { return _inputs [0]; }
    public: // internal representation
       std::array<lib::smart_ptr<vreg>, 1> _outputs;
       std::array<lib::smart_ptr<operand>, 1> _inputs;
@@ -155,15 +153,15 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_mov( Loc loc,
          lib::smart_ptr<vreg> &&dest, lib::smart_ptr<operand> &&src ) noexcept
          : insn(loc), _outputs{std::move(dest)}, _inputs{std::move(src)} {
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_mov( Loc loc,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
          : insn(loc), _outputs(outputs), _inputs(inputs) {
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { log << dest() << " := mov " << src(); }
    # endif
    };
@@ -180,10 +178,10 @@ namespace rsn::opt {
       insn_load *clone(bblock *owner) const override { return new insn_load(owner, _outputs, _inputs); }
       insn_load *clone(insn *next) const override { return new insn_load(next, _outputs, _inputs); }
    public: // data operands and jump targets
-      auto &dest() noexcept       { return _outputs[0]; }
-      auto &dest() const noexcept { return _outputs[0]; }
-      auto &src() noexcept        { return _inputs [0]; }
-      auto &src() const noexcept  { return _inputs [0]; }
+      RSN_INLINE auto &dest() noexcept       { return _outputs[0]; }
+      RSN_INLINE auto &dest() const noexcept { return _outputs[0]; }
+      RSN_INLINE auto &src() noexcept        { return _inputs [0]; }
+      RSN_INLINE auto &src() const noexcept  { return _inputs [0]; }
    public: // internal representation
       std::array<lib::smart_ptr<vreg>, 1> _outputs;
       std::array<lib::smart_ptr<operand>, 1> _inputs;
@@ -191,15 +189,15 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_load( Loc loc,
          lib::smart_ptr<vreg> &&dest, lib::smart_ptr<operand> &&src ) noexcept
          : insn(loc), _outputs{std::move(dest)}, _inputs{std::move(src)} {
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_load( Loc loc,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
          : insn(loc), _outputs(outputs), _inputs(inputs) {
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { log << dest() << " := load @" << src(); }
    # endif
    };
@@ -216,25 +214,25 @@ namespace rsn::opt {
       insn_store *clone(bblock *owner) const override { return new insn_store(owner, _inputs); }
       insn_store *clone(insn *next) const override { return new insn_store(next, _inputs); }
    public: // data operands and jump targets
-      auto &src() noexcept        { return _inputs[0]; }
-      auto &src() const noexcept  { return _inputs[0]; }
-      auto &dest() noexcept       { return _inputs[1]; }
-      auto &dest() const noexcept { return _inputs[1]; }
+      RSN_INLINE auto &src() noexcept        { return _inputs[0]; }
+      RSN_INLINE auto &src() const noexcept  { return _inputs[0]; }
+      RSN_INLINE auto &dest() noexcept       { return _inputs[1]; }
+      RSN_INLINE auto &dest() const noexcept { return _inputs[1]; }
    public: // internal representation
       std::array<lib::smart_ptr<operand>, 2> _inputs;
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_store( Loc loc,
          lib::smart_ptr<operand> &&src, lib::smart_ptr<operand> &&dest ) noexcept
          : insn(loc), _inputs{std::move(src), std::move(dest)} {
-         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_store( Loc loc,
          const declype(_inputs) &inputs ) noexcept
          : insn(loc), _inputs(inputs) {
-         insn::_inputs = _inputs; insn::_outputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { log << "store " << src() << " -> @" << dest(); }
    # endif
    };
@@ -264,14 +262,14 @@ namespace rsn::opt {
       insn_binop *clone(bblock *owner) const override { return new insn_binop(owner, op, _outputs, _inputs); }
       insn_binop *clone(insn *next) const override { return new insn_binop(next, op, _outputs, _inputs); }
    public: // data operands and jump targets
-      auto &dest() noexcept       { return _outputs[0]; }
-      auto &dest() const noexcept { return _outputs[0]; }
-      auto &lhs() noexcept        { return _inputs [0]; }
-      auto &lhs() const noexcept  { return _inputs [0]; }
-      auto &rhs() noexcept        { return _inputs [1]; }
-      auto &rhs() const noexcept  { return _inputs [1]; }
+      RSN_INLINE auto &dest() noexcept       { return _outputs[0]; }
+      RSN_INLINE auto &dest() const noexcept { return _outputs[0]; }
+      RSN_INLINE auto &lhs() noexcept        { return _inputs [0]; }
+      RSN_INLINE auto &lhs() const noexcept  { return _inputs [0]; }
+      RSN_INLINE auto &rhs() noexcept        { return _inputs [1]; }
+      RSN_INLINE auto &rhs() const noexcept  { return _inputs [1]; }
    public: // miscellaneous
-      bool try_to_fold() override;
+      bool simplify() override;
    public: // internal representation
       std::array<lib::smart_ptr<vreg>, 1> _outputs;
       std::array<lib::smart_ptr<operand>, 2> _inputs;
@@ -279,60 +277,59 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
          lib::smart_ptr<vreg> &&dest, lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs ) noexcept
          : insn(loc), op(op), _outputs{std::move(dest)}, _inputs{std::move(lhs)), rhs(std::move(rhs)} {
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
          const declype(_outputs) &outputs, const declype(_inputs) &inputs ) noexcept
          : insn(loc), op(op), _outputs(outputs), _inputs(inputs) {
-         insn::_outputs = _outputs, insn::_inputs = _inputs; insn::_targets = {nullptr, nullptr};
+         insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()}, insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override {
          static constexpr const char *mnemo[]
             {"add", "sub", "umul", "udiv", "urem", "smul", "sdiv", "srem", "and", "or", "xor", "shl", "ushr", "sshr"};
          log << dest() << " := " << mnemo[op] << ' ' << lhs() << ", " << rhs();
       }
-   # endif
+   # endif // # if RSN_USE_DEBUG
    };
 
    class insn_jmp final: public insn {
    public: // construction/destruction
       RSN_INLINE static auto make( bblock *owner,
-         bblock *&dest )
+         bblock *dest )
          { return new insn_jmp(owner, std::move(dest)); }
       RSN_INLINE static auto make( insn *next,
-         bblock *&dest )
+         bblock *dest )
          { return new insn_jmp(next,  std::move(dest)); }
    public:
       insn_jmp *clone(bblock *owner) const override { return new insn_jmp(owner, _targets); }
       insn_jmp *clone(insn *next) const override { return new insn_jmp(next, _targets); }
    public: // data operands and jump targets
-      auto &dest() noexcept       { return _targets[0]; }
-      auto &dest() const noexcept { return _targets[0]; }
+      RSN_INLINE auto &dest() noexcept       { return _targets[0]; }
+      RSN_INLINE auto &dest() const noexcept { return _targets[0]; }
    public: // internal representation
       std::array<bblock *, 1> _targets;
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_jmp( Loc loc,
          bblock *&&dest ) noexcept
          : insn(loc), _targets{std::move(dest)} {
-         init(_targets);
-         insn::_targets = _targets; insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr};
+         insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_jmp( Loc loc,
          const declype(_targets) &targets ) noexcept
          : insn(loc), _targets(targets) {
-         insn::_targets = _targets; insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr};
+         insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override { log << "jmp to " << dest(); }
    # endif
    };
 
    class insn_br final: public insn {
    public: // public data members
-      const enum { _beq, _bne, _ublt, _uble, _sblt, _sble } op;
+      const enum { _beq, _bult, _bule, _bslt, _bsle } op;
    public: // construction/destruction
       RSN_INLINE static auto make( bblock *owner, decltype(op) op,
          lib::smart_ptr<operand> lhs, lib::smart_ptr<operand> rhs, bblock *dest1, bblock *dest2 )
@@ -348,22 +345,22 @@ namespace rsn::opt {
          lib::smart_ptr<operand> lhs, lib::smart_ptr<operand> rhs, bblock *dest1, bblock *dest2 ) \
          { return new insn_br(next, OP,  std::move(lhs), std::move(rhs), std::move(dest1), std::move(dest2)); } \
    // end # define RSN_M1(OP)
-      RSN_M1(_beq) RSN_M1(_bne) RSN_M1(_ublt) RSN_M1(_uble) RSN_M1(_sblt) RSN_M1(_sble)
+      RSN_M1(_beq) RSN_M1(_bult) RSN_M1(_bule) RSN_M1(_bslt) RSN_M1(_bsle)
    # undef RSN_M1
    public:
       insn_br *clone(bblock *owner) const override { return new insn_br(owner, op, _inputs, _targets); }
       insn_br *clone(insn *next) const override { return new insn_br(next, op, _inputs, _targets); }
    public: // data operands and jump targets
-      auto &lhs() noexcept         { return _inputs [0]; }
-      auto &lhs() const noexcept   { return _inputs [0]; }
-      auto &rhs() noexcept         { return _inputs [1]; }
-      auto &rhs() const noexcept   { return _inputs [1]; }
-      auto &dest1() noexcept       { return _targets[0]; }
-      auto &dest1() const noexcept { return _targets[0]; }
-      auto &dest2() noexcept       { return _targets[1]; }
-      auto &dest2() const noexcept { return _targets[1]; }
+      RSN_INLINE auto &lhs() noexcept         { return _inputs [0]; }
+      RSN_INLINE auto &lhs() const noexcept   { return _inputs [0]; }
+      RSN_INLINE auto &rhs() noexcept         { return _inputs [1]; }
+      RSN_INLINE auto &rhs() const noexcept   { return _inputs [1]; }
+      RSN_INLINE auto &dest1() noexcept       { return _targets[0]; }
+      RSN_INLINE auto &dest1() const noexcept { return _targets[0]; }
+      RSN_INLINE auto &dest2() noexcept       { return _targets[1]; }
+      RSN_INLINE auto &dest2() const noexcept { return _targets[1]; }
    public: // miscellaneous
-      bool try_to_fold() override;
+      bool simplify() override;
    public: // internal representation
       std::array<lib::smart_ptr<operand>, 2> _inputs;
       std::array<bblock *, 2> _targets;
@@ -371,21 +368,21 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
          lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs, bblock *&&dest1, bblock *&&dest2 )
          : insn(loc), op(op), _inputs{std::move(lhs), std::move(rhs)}, _targets{std::move(dest1)), rhs(std::move(dest2)} {
-         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
          const declype(_inputs) &inputs, const declype(_targets) &targets ) noexcept
          : insn(loc), op(op), _inputs(inputs), _targets(targets) {
-         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
    # if RSN_USE_DEBUG
-   public:
+   public: // debugging
       void dump() const noexcept override {
          static constexpr const char *mnemo[]
-            {"beq", "bne", "ublt", "uble", "sblt", "sble"};
+            {"beq", "bult", "bule", "bslt", "bsle"};
          log << mnemo[op] << ' ' << lhs() << ", " << rhs() << " to " << dest1() << ", " << dest2();
       }
-   # endif
+   # endif // # if RSN_USE_DEBUG
    };
 
    class insn_switch_br final: public insn {
@@ -397,15 +394,15 @@ namespace rsn::opt {
          lib::smart_ptr<operand> index, std::vector<bblock *> dests )
          { return new insn_switch_br(next,  std::move(index), std::move(dests)); }
    public:
-      insn_switch_br *clone(bblock *owner) const override { return new insn_switch_br(owner, _inputs, _targets); }
-      insn_switch_br *clone(insn *next) const override { return new insn_switch_br(next, _inputs, _targets); }
+      RSN_NOINLINE insn_switch_br *clone(bblock *owner) const override { return new insn_switch_br(owner, _inputs, _targets); }
+      RSN_NOINLINE insn_switch_br *clone(insn *next) const override { return new insn_switch_br(next, _inputs, _targets); }
    public: // data operands and jump targets
-      auto &index() noexcept       { return _inputs[0]; }
-      auto &index() const noexcept { return _inputs[0]; }
-      auto  dests() noexcept       { return lib::range_ref{&*_targets.begin(), &*_targets.end()}; }
-      auto  dests() const noexcept { return lib::range_ref{&*_targets.begin(), &*_targets.end()}; }
+      RSN_INLINE auto &index() noexcept       { return _inputs[0]; }
+      RSN_INLINE auto &index() const noexcept { return _inputs[0]; }
+      RSN_INLINE auto  dests() noexcept       { return lib::range_ref{_targets.begin(), _targets.end()}; }
+      RSN_INLINE auto  dests() const noexcept { return lib::range_ref{_targets.begin(), _targets.end()}; }
    public: // miscellaneous
-      bool try_to_fold() override;
+      bool simplify() override;
    public: // internal representation
       std::array<lib::smart_ptr<operand>, 1> _inputs;
       std::vector<bblock *> _targets;
@@ -413,40 +410,39 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_switch_br( Loc loc,
          lib::smart_ptr<operand> &&index, std::vector<bblock *> &&dests )
          : insn(loc), _inputs{std::move(index)}, _targets(std::move(dests)) {
-         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
+         _targets.shrink_to_fit();
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_switch_br( Loc loc,
          const declype(_inputs) &inputs, const declype(_targets) &targets ) noexcept
          : insn(loc), _inputs(inputs), _targets(targets) {
-         insn::_inputs = _inputs, insn::_targets = _targets; insn::_outputs = {nullptr, nullptr};
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
    # if RSN_USE_DEBUG
-   public:
-      void dump() const noexcept override { log << "jmp " << index << " to ( " << dests << " )"; }
+   public: // debugging
+      void dump() const noexcept override { log << "br " << index() << " to ( " << dests() << " )"; }
    # endif
    };
 
-   class insn_undefined final: public insn {
+   class insn_oops final: public insn {
    public: // construction/destruction
       RSN_INLINE static auto make(bblock *owner)
-         { return new insn_undefined(owner); }
+         { return new insn_oops(owner); }
       RSN_INLINE static auto make(insn *next)
-         { return new insn_undefined(next); }
+         { return new insn_oops(next); }
    public:
-      insn_undefined *clone(bblock *owner) const override { return new insn_undefined(owner); }
-      insn_undefined *clone(insn *next) const override { return new insn_undefined(next); }
+      insn_oops *clone(bblock *owner) const override { return new insn_oops(owner); }
+      insn_oops *clone(insn *next) const override { return new insn_oops(next); }
    private: // implementation helpers
-      template<typename Loc> RSN_INLINE explicit insn_undefined(Loc loc) noexcept
+      template<typename Loc> RSN_INLINE explicit insn_oops(Loc loc) noexcept
          : insn(loc) {
-         insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
-      template<typename Loc> RSN_INLINE explicit insn_undefined(Loc loc) noexcept
+      template<typename Loc> RSN_INLINE explicit insn_oops(Loc loc) noexcept
          : insn(loc) {
-         insn::_outputs = {nullptr, nullptr}, insn::_inputs = {nullptr, nullptr}, insn::_targets = {nullptr, nullptr};
       }
    # if RSN_USE_DEBUG
-   public:
-      void dump() const noexcept override { log << "undefined"; }
+   public: // debugging
+      void dump() const noexcept override { log << "oops"; }
    # endif
    };
 
