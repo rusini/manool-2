@@ -256,11 +256,9 @@ namespace rsn::lib {
    template<typename Obj, typename Owner> class collection_item_mixin;
 
    template<typename Owner, typename Obj> class collection_mixin: noncopyable { // an object that owns a varying number of other objects (pointing to the owner)
-      //static_assert(std::is_base_of_v<collection_mixin, Owner>);                // Owner must be actually *the only* derived class of collection_mixin<Owner, Obj>
-      //static_assert(std::is_base_of_v<collection_item_mixin<Obj, Owner>, Obj>); // Obj must be actually *the only* derived class of collection_item_mixin<Obj, Owner>
    protected: // constructors/destructors
       collection_mixin() = default;
-      ~collection_mixin() { while (rear()) ((collection_item_mixin<Obj, Owner> *)rear())->eliminate(); }
+      ~collection_mixin() { while (rear()) obj_mixin(rear())->eliminate(); }
    public: // item access
       RSN_INLINE Obj *head() noexcept { return _head; }
       RSN_INLINE const Obj *head() const noexcept { _head; }
@@ -269,11 +267,11 @@ namespace rsn::lib {
    private: // internal representation
       Obj *_head{}, *_rear{};
       friend collection_item_mixin<Obj, Owner>;
+   private: // implementation helpers
+      RSN_INLINE static collection_item_mixin<Obj, Owner> *obj_mixin(Obj *obj) noexcept { return obj; }
    };
 
    template<typename Obj, typename Owner> class collection_item_mixin: noncopyable { // objects owned by a collection (which are organized in a linked list)
-      //static_assert(std::is_base_of_v<collection_item_mixin, Obj>);          // Obj must be actually *the only* derived class of collection_item_mixin<Obj, Owner>
-      //static_assert(std::is_base_of_v<collection_mixin<Owner, Obj>, Owner>); // Owner must be actually *the only* derived class of collection_mixin<Owner, Obj>
    protected: // constructors/destructors
       RSN_INLINE explicit collection_item_mixin(Owner *owner) noexcept: _owner(owner) { attach(); }                    // attach to the specified owner at the end
       RSN_INLINE explicit collection_item_mixin(Obj *next) noexcept: _owner(obj_mixin(next)->_owner) { attach(next); } // attach to the owner before the spec. sibling
@@ -295,8 +293,8 @@ namespace rsn::lib {
       Obj *_next, *_prev;
       Owner *_owner;
    private: // implementation helpers
-      typedef collection_item_mixin *obj_mixin;
-      typedef collection_mixin<Owner, Obj> *owner_mixin;
+      RSN_INLINE static collection_item_mixin *obj_mixin(Obj *obj) noexcept { return obj; }
+      RSN_INLINE static collection_mixin<Owner, Obj> *owner_mixin(Owner *owner) noexcept { return owner; }
    private:
       RSN_INLINE void detach() noexcept {
          (RSN_LIKELY(_prev) ? obj_mixin(_prev)->_next : owner_mixin(_owner)->_head) = _next;
