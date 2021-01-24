@@ -17,6 +17,7 @@
 
 namespace rsn::opt {
 
+// Some absolute immediate operands to share
 static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs_imm::make(0), abs_1 = abs_imm::make(1);
 static RSN_IF_WITH_MT(thread_local) const auto abs_ones = abs_imm::make(~0ull);
 
