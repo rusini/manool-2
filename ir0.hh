@@ -78,6 +78,8 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
       friend imm_val; // descendant
       friend vreg;    // ditto
+   public:
+      virtual bool equals(const operand *) const noexcept = 0;
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
@@ -102,6 +104,8 @@ namespace rsn::opt {
       const unsigned long long value;
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(value) value) { return lib::smart_ptr<abs_imm>::make(std::move(value)); }
+   public:
+      RSN_INLINE bool equals(const operand *rhs) const noexcept final { return RSN_UNLIKELY(lib::is<const abs_imm>(rhs)) && RSN_UNLIKELY(lib::as<const abs_imm>(rhs)->value == value); }
    private: // implementation helpers
       RSN_INLINE explicit abs_imm(decltype(value) &&value) noexcept: value(std::move(value)) {}
       ~abs_imm() override = default;
@@ -118,6 +122,8 @@ namespace rsn::opt {
    class rel_imm: public imm_val { // relocatable constant value
    public: // public data members
       const std::pair<unsigned long long, unsigned long long> id;
+   public:
+      RSN_INLINE bool equals(const operand *rhs) const noexcept final { return RSN_UNLIKELY(lib::is<const rel_imm>(rhs)) && RSN_UNLIKELY(lib::as<const rel_imm>(rhs)->id == id); }
    private: // implementation helpers
       RSN_INLINE rel_imm(decltype(id) &&id): id(std::move(id)) {}
       ~rel_imm() override = 0;
@@ -196,6 +202,8 @@ namespace rsn::opt {
       RSN_INLINE explicit vreg() noexcept {}
       ~vreg() override = default;
       template<typename> friend class lib::smart_ptr;
+   public:
+      RSN_INLINE bool equals(const operand *rhs) const noexcept final { return RSN_UNLIKELY(rhs == this); }
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg ", sn), log << '(' << owner() << ')', std::fputs("\n\n", stderr); }
