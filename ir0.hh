@@ -26,6 +26,8 @@
 
 namespace rsn::opt {
 
+   using lib::is, lib::as;
+
    // Inheritance hierarchy
    class operand;           // data operand of "infinite" width (absolute, relocatable, virtual register, etc.)... excluding jump targets
       class imm_val;        // absolute or relocatable immediate constant
@@ -105,7 +107,8 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(value) value) { return lib::smart_ptr<abs_imm>::make(std::move(value)); }
    public:
-      RSN_INLINE bool equals(const operand *rhs) const noexcept final { return RSN_UNLIKELY(lib::is<const abs_imm>(rhs)) && RSN_UNLIKELY(lib::as<const abs_imm>(rhs)->value == value); }
+      RSN_INLINE bool equals(const operand *rhs) const noexcept final
+         { return RSN_UNLIKELY(is<abs_imm>(rhs)) && RSN_UNLIKELY(as<const abs_imm>(rhs)->value == value); }
    private: // implementation helpers
       RSN_INLINE explicit abs_imm(decltype(value) &&value) noexcept: value(std::move(value)) {}
       ~abs_imm() override = default;
@@ -123,7 +126,8 @@ namespace rsn::opt {
    public: // public data members
       const std::pair<unsigned long long, unsigned long long> id;
    public:
-      RSN_INLINE bool equals(const operand *rhs) const noexcept final { return RSN_UNLIKELY(lib::is<const rel_imm>(rhs)) && RSN_UNLIKELY(lib::as<const rel_imm>(rhs)->id == id); }
+      RSN_INLINE bool equals(const operand *rhs) const noexcept final
+         { return RSN_UNLIKELY(is<rel_imm>(rhs)) && RSN_UNLIKELY(as<const rel_imm>(rhs)->id == id); }
    private: // implementation helpers
       RSN_INLINE rel_imm(decltype(id) &&id): id(std::move(id)) {}
       ~rel_imm() override = 0;

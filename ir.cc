@@ -26,7 +26,6 @@ static RSN_INLINE inline void split(insn *in) { // split the BB at the insn
 }
 
 bool insn_binop::simplify() {
-   using lib::is, lib::as;
    bool changed{};
    switch (op) {
    default:
