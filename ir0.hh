@@ -65,7 +65,7 @@ namespace rsn::opt {
                { bool flag{}; for (auto &it: nodes) { if (flag) std::fputs(", ", stderr); it->dump_ref(), flag = true; } return *this; }
          } log{};
       private:
-         static thread_local inline unsigned node_count;
+         static RSN_IF_WITH_MT(thread_local) inline unsigned node_count;
       # endif // # if RSN_USE_DEBUG
       };
    } // namespace aux

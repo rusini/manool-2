@@ -17,8 +17,13 @@
 
 namespace rsn::opt {
 
-static const auto abs_0 = abs_imm::make(0), abs_1 = abs_imm::make(1);
-static const auto abs_ones = abs_imm::make(~0ull);
+static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs_imm::make(0), abs_1 = abs_imm::make(1);
+static RSN_IF_WITH_MT(thread_local) const auto abs_ones = abs_imm::make(~0ull);
+
+static RSN_INLINE inline void split(insn *in) { // split the BB at the insn
+   auto bb = RSN_LIKELY(in->owner()->next()) ? bblock::make(in->owner()->next()) : bblock::make(in->owner()->owner());
+   for (auto _in: all(in, {})) _in->reattach(bb);
+}
 
 bool insn_binop::simplify() {
    using lib::is, lib::as;
@@ -100,13 +105,13 @@ bool insn_binop::simplify() {
          }
       }
       if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) {
+         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_0), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
          return true;
       }
       if (lhs()->equals(rhs())) {
+         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_1), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
          return true;
       }
       return false;
@@ -125,14 +130,9 @@ bool insn_binop::simplify() {
             return true;
          }
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) {
+      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value || lhs()->equals(rhs())) {
+         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_0), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
-         return true;
-      }
-      if (lhs()->equals(rhs())) {
-         insn_mov::make(this, std::move(dest()), abs_0), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
          return true;
       }
       return false;
@@ -182,13 +182,13 @@ bool insn_binop::simplify() {
          }
       }
       if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) {
+         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_0), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
          return true;
       }
       if (lhs()->equals(rhs())) {
+         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_1), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
          return true;
       }
       return false;
@@ -212,14 +212,9 @@ bool insn_binop::simplify() {
             return true;
          }
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) {
+      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value || lhs()->equals(rhs())) {
+         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_0), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
-         return true;
-      }
-      if (lhs()->equals(rhs())) {
-         insn_mov::make(this, std::move(dest()), abs_0), eliminate(); // algebraic simplification
-         // TODO: add conditional oops for rhs == 0
          return true;
       }
       return false;
