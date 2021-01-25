@@ -41,6 +41,33 @@ bool insn_binop::simplify() {
          return lhs().swap(rhs()), true;
       if (is<abs_imm>(rhs()) && as<abs_imm>(rhs())->value == 0) // algebraic simplification
          return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+# if 0
+      if (is<abs_imm>(rhs()) {
+         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
+            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+         if (is<off_rel>(lhs())) // constant folding
+            return insn_mov::make(this, std::move(dest()),
+               off_rel::make(as<off_rel>(lhs())->base, as<off_rel>(lhs())->disp + as<abs_imm>(rhs())->value)), eliminate(), true;
+         else
+         if (is<rel_imm>(lhs())) // constant folding
+            return insn_mov::make(this, std::move(dest()),
+               off_rel::make(std::move(lhs()), as<abs_imm>(rhs())->value)), eliminate(), true;
+      }
+
+
+
+      if (is<rel_imm>(lhs())) {
+         return is<off_rel>(lhs())
+      }
+      return changed;
+
+
+      if (is<off_rel>(lhs())) {
+         if (is<imm_val>(rhs())) off_rel::make();
+            
+      } else
+      if (is<rel_imm>(lhs()) && is<imm_val>(lhs())) // constant folding
+# endif
       return changed;
    case _sub:
       if (is<abs_imm>(rhs())) {

@@ -36,7 +36,7 @@ namespace rsn::lib {
 
    // Utilities for Raw and RC-ing Pointers ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-   class noncopyable { // may cost a few bytes of wasted space (under multiple inheritance)
+   template<typename = void> class noncopyable { // CRTP to avoid wasting space under multiple inheritance
    protected:
       noncopyable() = default;
       ~noncopyable() = default;
@@ -45,14 +45,14 @@ namespace rsn::lib {
       noncopyable &operator=(const noncopyable &) = delete;
    };
    // Downcast for raw pointers to non-copyables
-   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable, Src>, bool> is(Src *src) noexcept
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> is(Src *src) noexcept
       { return dynamic_cast<const Dest *>(src); }
-   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable, Src>, Dest *> as(Src *src) noexcept
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, Dest *> as(Src *src) noexcept
       { return static_cast<Dest *>(src); }
 
    template<typename> class smart_ptr;
 
-   class smart_rc: noncopyable {
+   class smart_rc: noncopyable<smart_rc> {
    protected:
       smart_rc() = default;
       ~smart_rc() = default;
@@ -255,7 +255,8 @@ namespace rsn::lib {
 
    template<typename Obj, typename Owner> class collection_item_mixin;
 
-   template<typename Owner, typename Obj> class collection_mixin: noncopyable { // an object that owns a varying number of other objects (pointing to the owner)
+   template<typename Owner, typename Obj>
+   class collection_mixin: noncopyable<collection_mixin<Owner, Obj>> { // an object that owns a varying number of other objects (pointing to the owner)
    protected: // constructors/destructors
       collection_mixin() = default;
       ~collection_mixin() { while (rear()) obj_mixin(rear())->eliminate(); }
@@ -271,7 +272,8 @@ namespace rsn::lib {
       RSN_INLINE static collection_item_mixin<Obj, Owner> *obj_mixin(Obj *obj) noexcept { return obj; }
    };
 
-   template<typename Obj, typename Owner> class collection_item_mixin: noncopyable { // objects owned by a collection (which are organized in a linked list)
+   template<typename Obj, typename Owner>
+   class collection_item_mixin: noncopyable<collection_item_mixin<Obj, Owner>> { // objects owned by a collection (which are organized in a linked list)
    protected: // constructors/destructors
       RSN_INLINE explicit collection_item_mixin(Owner *owner) noexcept: _owner(owner) { attach(); }                    // attach to the specified owner at the end
       RSN_INLINE explicit collection_item_mixin(Obj *next) noexcept: _owner(obj_mixin(next)->_owner) { attach(next); } // attach to the owner before the spec. sibling

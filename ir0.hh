@@ -29,19 +29,21 @@ namespace rsn::opt {
    using lib::is, lib::as;
 
    // Inheritance hierarchy
-   class operand;           // data operand of "infinite" width (absolute, relocatable, virtual register, etc.)... excluding jump targets
-      class imm_val;        // absolute or relocatable immediate constant
-         class abs_imm;     // 64-bit absolute constant value
-         class rel_imm;     // relocatable constant value
-            class ext_rel;  // extern (externally defined) relocatable value
-            class proc;     // procedure, AKA function, subroutine, etc. (translation unit)
-            class data;     // static initialized-data block
-      class vreg;           // virtual register
-   class bblock;            // basic block (also used to specify a jump target)
-   class insn;              // IR instruction
+   class operand;             // data operand of "infinite" width (abs, rel, vreg, etc.)... excluding jump targets
+      class imm_val;          // absolute or relocatable immediate constant
+         class abs_imm;       // 64-bit absolute constant value
+         class rel_imm;       // relocatable constant value
+            class base_rel;   // base relocatable (with zero addendum)
+               class ext_rel; // extern (externally defined) relocatable value
+               class proc;    // procedure, AKA function, subroutine, etc. (translation unit)
+               class data;    // static initialized-data block
+            class disp_rel;   // displaced relocatable (with nonzero addendum)
+      class vreg;             // virtual register
+   class bblock;              // basic block (also used to specify a jump target)
+   class insn;                // IR instruction
 
    namespace aux {
-      class node: lib::noncopyable { // IR node base class
+      class node: lib::noncopyable<> { // IR node base class
          node() = default;
          ~node() = default;
          friend operand;
@@ -74,7 +76,7 @@ namespace rsn::opt {
 
    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-   class operand: protected aux::node, lib::smart_rc { // data operand of "infinite" width (absolute, relocatable, virtual register, etc.)... excluding jump targets
+   class operand: protected aux::node, lib::smart_rc { // data operand of "infinite" width (abs, rel, vreg, etc.)... excluding jump targets
       operand() = default;
       virtual ~operand() = 0;
       template<typename> friend class lib::smart_ptr;
@@ -172,7 +174,7 @@ namespace rsn::opt {
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_PROC
-      # include "opt-temp.tcc"
+         # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_PROC
       } temp;
    };
@@ -199,6 +201,28 @@ namespace rsn::opt {
    # endif // # if RSN_USE_DEBUG
    };
 
+# if 0
+   class disp_rel final: public rel_imm { // relocatable value (w/ nonzero addendum)
+   public: // public data members
+      const lib::smart_ptr<rel_imm> base;
+      const unsigned long long offset;
+   public: // construction/destruction
+      RSN_INLINE RSN_NODISCARD static auto make(decltype(base) base, decltype(offset) offset)
+         { return lib::smart_ptr<disp_rel>::make(std::move(base), std::move(offset)); }
+   private: // implementation helpers
+      RSN_INLINE explicit disp_rel(decltype(base) base, decltype(offset) offset) noexcept: disp_rel{std::move(base), std::move(offset)} {}
+      ~disp_rel() override = default;
+      template<typename> friend class lib::smart_ptr;
+   # if RSN_USE_DEBUG
+   public: // debugging
+      void dump() const noexcept override { std::fprintf(stderr, "A%u = add ", sn), log << base, std::fprintf(stderr, "+%llu=0xllX\n\n", offset, offset); }
+   private:
+      void dump_ref() const noexcept override { std::fprintf(stderr, "A%u", sn), log << base, std::fprintf(stderr, "+%llu=0xllX", offset, offset); }
+      friend decltype(log);
+   # endif // # if RSN_USE_DEBUG
+   };
+# endif
+
    class vreg final: public operand { // virtual register
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make() { return lib::smart_ptr<vreg>::make(); }
@@ -210,7 +234,7 @@ namespace rsn::opt {
       RSN_INLINE bool equals(const operand *rhs) const noexcept final { return RSN_UNLIKELY(rhs == this); }
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg ", sn), log << '(' << owner() << ')', std::fputs("\n\n", stderr); }
+      void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg\n\n", sn); }
    private:
       void dump_ref() const noexcept override { std::fprintf(stderr, "R%u", sn); }
       friend decltype(log);
@@ -218,12 +242,12 @@ namespace rsn::opt {
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_VREG
-      # include "opt-temp.tcc"
+         # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_VREG
       } temp;
    };
 
-   class bblock final: protected aux::node, // basic block (also used to specify a jump target)
+   class bblock final: aux::node, // basic block (also used to specify a jump target)
       public lib::collection_item_mixin<bblock, proc>, public lib::collection_mixin<bblock, insn> {
    public: // construction
       static auto make(proc *owner) { return new bblock(owner); } // construct and attach to the specified owner procedure at the end
@@ -244,7 +268,7 @@ namespace rsn::opt {
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_BBLOCK
-      # include "opt-temp.tcc"
+         # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_BBLOCK
       } temp;
    };
@@ -281,7 +305,7 @@ namespace rsn::opt {
    public: // embedded temporary data
       struct {
       # define RSN_OPT_TEMP_INSN
-      # include "opt-temp.tcc"
+         # include "opt-temp.tcc"
       # undef RSN_OPT_TEMP_INSN
       } temp;
    };
