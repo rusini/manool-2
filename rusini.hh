@@ -87,6 +87,7 @@ namespace rsn::lib {
       RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++static_cast<smart_rc *>(rep)->rc; }
       RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--static_cast<smart_rc *>(rep)->rc)) delete rep; }
       template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>> as_smart(const smart_ptr<Src> &) noexcept;
+      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
    };
    // Non-member functions
    template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept
@@ -98,6 +99,8 @@ namespace rsn::lib {
       { return as<Dest>(&*src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>>
       as_smart(const smart_ptr<Src> &src) noexcept { return src.retain(), smart_ptr{as<Dest>(src)}; }
+   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>>
+      as_smart(smart_ptr<Src> &&src) noexcept { auto res = smart_ptr{as<Dest>(src)}; src.rep = {}; return res; }
 
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

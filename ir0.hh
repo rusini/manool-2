@@ -77,13 +77,19 @@ namespace rsn::opt {
    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    class operand: protected aux::node, lib::smart_rc { // data operand of "infinite" width (abs, rel, vreg, etc.)... excluding jump targets
-      operand() = default;
+      RSN_INLINE operand(decltype(kind) kind) noexcept: kind(kind) {}
       virtual ~operand() = 0;
       template<typename> friend class lib::smart_ptr;
       friend imm_val; // descendant
       friend vreg;    // ditto
+   public: // fast RTTI
+      RSN_INLINE bool is_imm() const noexcept { return kind != reg; }
+      RSN_INLINE bool is_reg() const noexcept { return kind == reg; }
+      RSN_INLINE bool is_abs() const noexcept { return kind == abs; }
    public: // miscellaneous
       virtual bool equals(const operand *) const noexcept = 0; // "provably denotes the same value at some point"
+   private: // internal representation
+      const enum { abs, reg } kind;
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
@@ -100,6 +106,8 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
       friend abs_imm; // descendant
       friend rel_imm; // ditto
+   public:
+      virtual lib::smart_ptr<imm> operator+(unsigned long long rhs) const = 0;
    };
    RSN_INLINE inline imm_val::~imm_val() = default;
 
