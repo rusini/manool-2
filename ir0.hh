@@ -33,11 +33,11 @@ namespace rsn::opt {
       class imm_val;          // absolute or relocatable immediate constant
          class abs_imm;       // 64-bit absolute constant value
          class rel_imm;       // relocatable constant value
-            class base_rel;   // base relocatable (with zero addendum)
+            class base_rel;   // base relocatable (w/ zero addendum)
                class ext_rel; // extern (externally defined) relocatable value
                class proc;    // procedure, AKA function, subroutine, etc. (translation unit)
                class data;    // static initialized-data block
-            class disp_rel;   // displaced relocatable (with nonzero addendum)
+            class disp_rel;   // displaced relocatable (w/ nonzero addendum)
       class vreg;             // virtual register
    class bblock;              // basic block (also used to specify a jump target)
    class insn;                // IR instruction
@@ -82,8 +82,8 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
       friend imm_val; // descendant
       friend vreg;    // ditto
-   public:
-      virtual bool equals(const operand *) const noexcept = 0;
+   public: // miscellaneous
+      virtual bool equals(const operand *) const noexcept = 0; // "provably denotes the same value at some point"
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
@@ -108,9 +108,8 @@ namespace rsn::opt {
       const unsigned long long value;
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(value) value) { return lib::smart_ptr<abs_imm>::make(std::move(value)); }
-   public:
-      RSN_INLINE bool equals(const operand *rhs) const noexcept final
-         { return RSN_UNLIKELY(is<abs_imm>(rhs)) && RSN_UNLIKELY(as<const abs_imm>(rhs)->value == value); }
+   public: // miscellaneous
+      RSN_INLINE bool equals(const operand *rhs) const noexcept override { return RSN_UNLIKELY(is<abs_imm>(rhs)) && as<const abs_imm>(rhs)->value == value; }
    private: // implementation helpers
       RSN_INLINE explicit abs_imm(decltype(value) &&value) noexcept: value(std::move(value)) {}
       ~abs_imm() override = default;
@@ -125,26 +124,34 @@ namespace rsn::opt {
    };
 
    class rel_imm: public imm_val { // relocatable constant value
-   public: // public data members
-      const std::pair<unsigned long long, unsigned long long> id;
-   public:
-      RSN_INLINE bool equals(const operand *rhs) const noexcept final
-         { return RSN_UNLIKELY(is<rel_imm>(rhs)) && RSN_UNLIKELY(as<const rel_imm>(rhs)->id == id); }
-   private: // implementation helpers
-      RSN_INLINE rel_imm(decltype(id) &&id): id(std::move(id)) {}
+      rel_imm() = default;
       ~rel_imm() override = 0;
+      template<typename> friend class lib::smart_ptr;
+      friend base_rel; // descendant
+      friend disp_rel; // ditto
+   };
+   RSN_INLINE inline rel_imm::~rel_imm() = default;
+
+   class base_rel: public rel_imm { // base relocatable (w/ zero addendum)
+   public: // public data members
+      const std::pair<unsigned long long, unsigned long long> id; // link-time symbol (content hash)
+   public: // miscellaneous
+      RSN_INLINE bool equals(const operand *rhs) const noexcept final { return RSN_UNLIKELY(is<base_rel>(rhs)) && as<const base_rel>(rhs)->id == id; }
+   private: // implementation helpers
+      RSN_INLINE base_rel(decltype(id) &&id): id(std::move(id)) {}
+      ~base_rel() override = 0;
       template<typename> friend class lib::smart_ptr;
       friend ext_rel; // descendant
       friend proc;    // ditto
       friend data;    // ditto
    };
-   RSN_INLINE inline rel_imm::~rel_imm() = default;
+   RSN_INLINE inline base_rel::~base_rel() = default;
 
-   class ext_rel final: public rel_imm { // extern (externally defined) relocatable value
+   class ext_rel final: public base_rel { // extern (externally defined) relocatable value
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<ext_rel>::make(std::move(id)); }
    private: // implementation helpers
-      RSN_INLINE explicit ext_rel(decltype(id) &&id) noexcept: rel_imm{std::move(id)} {}
+      RSN_INLINE explicit ext_rel(decltype(id) &&id) noexcept: base_rel{std::move(id)} {}
       ~ext_rel() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -156,12 +163,12 @@ namespace rsn::opt {
    # endif // # if RSN_USE_DEBUG
    };
 
-   class proc final: public rel_imm, // procedure, AKA function, subroutine, etc. (translation unit)
+   class proc final: public base_rel, // procedure, AKA function, subroutine, etc. (translation unit)
       public lib::collection_mixin<proc, bblock> {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
    private: // implementation helpers
-      RSN_INLINE explicit proc(decltype(id) &&id): rel_imm{std::move(id)} {}
+      RSN_INLINE explicit proc(decltype(id) &&id): base_rel{std::move(id)} {}
       ~proc() override;
       template<typename> friend class lib::smart_ptr;
    # ifdef RSN_USE_DEBUG
@@ -179,13 +186,13 @@ namespace rsn::opt {
       } temp;
    };
 
-   class data final: public rel_imm { // static initialized-data block
+   class data final: public base_rel { // static initialized-data block
    public: // public data members
       const std::vector<lib::smart_ptr<imm_val>> values;
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id, decltype(values) values) { return lib::smart_ptr<data>::make(std::move(id), std::move(values)); }
    private: // implementation helpers
-      RSN_INLINE explicit data(decltype(id) &&id, decltype(values) &&values): rel_imm{std::move(id)}, values(std::move(values)) {}
+      RSN_INLINE explicit data(decltype(id) &&id, decltype(values) &&values): base_rel{std::move(id)}, values(std::move(values)) {}
       ~data() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -201,27 +208,28 @@ namespace rsn::opt {
    # endif // # if RSN_USE_DEBUG
    };
 
-# if 0
-   class disp_rel final: public rel_imm { // relocatable value (w/ nonzero addendum)
+   class disp_rel final: public rel_imm { // displaced relocatable (w/ nonzero addendum)
    public: // public data members
-      const lib::smart_ptr<rel_imm> base;
+      const lib::smart_ptr<base_rel> base;
       const unsigned long long offset;
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(base) base, decltype(offset) offset)
-         { return lib::smart_ptr<disp_rel>::make(std::move(base), std::move(offset)); }
+         { return !offset ? lib::smart_ptr<rel_imm>(std::move(base)) : lib::smart_ptr<rel_imm>(lib::smart_ptr<disp_rel>::make(std::move(base), std::move(offset))); }
+   public: // miscellaneous
+      RSN_INLINE bool equals(const operand *rhs) const noexcept override
+         { return RSN_UNLIKELY(is<disp_rel>(rhs)) && RSN_UNLIKELY(as<const disp_rel>(rhs)->base->equals(base)) && as<const disp_rel>(rhs)->offset == offset; }
    private: // implementation helpers
-      RSN_INLINE explicit disp_rel(decltype(base) base, decltype(offset) offset) noexcept: disp_rel{std::move(base), std::move(offset)} {}
+      RSN_INLINE explicit disp_rel(decltype(base) base, decltype(offset) offset) noexcept: base(std::move(base)), offset(std::move(offset)) {}
       ~disp_rel() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { std::fprintf(stderr, "A%u = add ", sn), log << base, std::fprintf(stderr, "+%llu=0xllX\n\n", offset, offset); }
+      void dump() const noexcept override { std::fprintf(stderr, "A%u = add ", sn), log << base, std::fprintf(stderr, "%lld[+0xllX]\n\n", (long long)offset, offset); }
    private:
       void dump_ref() const noexcept override { std::fprintf(stderr, "A%u", sn), log << base, std::fprintf(stderr, "+%llu=0xllX", offset, offset); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
-# endif
 
    class vreg final: public operand { // virtual register
    public: // construction/destruction
