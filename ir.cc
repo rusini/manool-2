@@ -39,28 +39,30 @@ bool insn_binop::simplify() {
       if (lhs()->is_imm() && !rhs()->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
       if (rhs()->is_abs()) {
-         if (rhs()->as_abs()->value == 0) // algebraic simplification
+         if (rhs()->as_abs()->val == 0) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
          if (lhs()->is_abs()) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->value + rhs()->as_abs()->value)), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val + rhs()->as_abs()->val)), eliminate(), true;
          if (lhs()->is_rel_base()) // constant folding
-            return insn_mov::make(this, std::move(dest()), rel_disp::make(std::move(lhs())->as_smart_rel_base(), +rhs()->as_abs()->value), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), rel_disp::make(std::move(lhs())->as_smart_rel_base(), +rhs()->as_abs()->val), eliminate(), true;
          if (lhs()->is_rel_disp()) // constant folding
-            return insn_mov::make(this, std::move(dest()), !(lhs()->as_rel_disp()->offset + rhs()->as_abs()->value) ? lhs()->as_rel_disp()->base->as_smart_rel()) :
-               disp_rel::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->offset + rhs()->as_abs()->value)->as_smart_rel()), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), !(lhs()->as_rel_disp()->add + rhs()->as_abs()->val) ? lhs()->as_rel_disp()->base->as_smart_rel()) :
+               disp_rel::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->add + rhs()->as_abs()->val)->as_smart_rel()), eliminate(), true;
       }
       return changed;
    case _sub:
       if (rhs()->is_abs()) {
-         if (rhs()->as_abs()->value == 0) // algebraic simplification
+         if (rhs()->as_abs()->val == 0) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
          if (lhs()->is_abs()) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->value - rhs()->as_abs()->value)), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val - rhs()->as_abs()->val)), eliminate(), true;
          if (lhs()->is_rel_base()) // constant folding
-            return insn_mov::make(this, std::move(dest()), rel_disp::make(std::move(lhs())->as_smart_rel_base(), -rhs()->as_abs()->value), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), rel_disp::make(std::move(lhs())->as_smart_rel_base(), -rhs()->as_abs()->val), eliminate(), true;
          if (lhs()->is_rel_disp()) // constant folding
-            return insn_mov::make(this, std::move(dest()), !(lhs()->as_rel_disp()->offset + rhs()->as_abs()->value) ? lhs()->as_rel_disp()->base->as_smart_rel()) :
-               disp_rel::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->offset + rhs()->as_abs()->value)->as_smart_rel()), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), !(lhs()->as_rel_disp()->add + rhs()->as_abs()->val) ? lhs()->as_rel_disp()->base->as_smart_rel()) :
+               disp_rel::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->add + rhs()->as_abs()->val)->as_smart_rel()), eliminate(), true;
+         // canonicalization
+         return insn_binop::make_add(this, std::move(dest()), std::move(lhs()), abs::make(-rhs()->as_abs()->val)), eliminate(), true;
       }
       if (lhs()->is_rel_base()) {
          if (rhs()->is_rel_base()) {
@@ -69,431 +71,230 @@ bool insn_binop::simplify() {
          } else
          if (rhs()->is_rel_disp()) {
             if (lhs()->is_rel_base()->id == rhs()->is_rel_disp()->id)
-               return insn_mov::make(this, std::move(dest()), abs::make(-rhs()->is_rel_disp()->offset)), eliminate(), true;
+               return insn_mov::make(this, std::move(dest()), abs::make(-rhs()->is_rel_disp()->add)), eliminate(), true;
          }
       } else
       if (lhs()->is_rel_disp()) {
          if (rhs()->is_rel_base())
             if (lhs()->is_rel_base()->id == rhs()->is_rel_disp()->id)
-               return insn_mov::make(this, std::move(dest()), abs::make(+lhs()->is_rel_disp()->offset)), eliminate(), true;
+               return insn_mov::make(this, std::move(dest()), abs::make(+lhs()->is_rel_disp()->add)), eliminate(), true;
          else
          if (rhs()->is_rel_disp())
             if (lhs()->is_rel_base()->id == rhs()->is_rel_disp()->id)
-               return insn_mov::make(this, std::move(dest()), abs::make(lhs()->is_rel_disp()->offset - rhs()->is_rel_disp()->offset)), eliminate(), true;
+               return insn_mov::make(this, std::move(dest()), abs::make(lhs()->is_rel_disp()->add - rhs()->is_rel_disp()->add)), eliminate(), true;
       }
       if (lhs() == rhs()) // algebraic simplification
          return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
       return {};
    case _umul:
-      if (is<abs_imm>(lhs())) {
-         if (!is<abs_imm>(rhs())) // canonicalization
+      if (lhs()->is_abs()) {
+         if (!rhs()->is_abs()) // canonicalization
             changed = (lhs().swap(rhs()), true);
       } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
+      if (lhs()->is_imm() && !rhs()->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
+      if (rhs()->is_abs()) {
+         if (rhs()->as_abs()->val == 1) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
+         if (rhs()->as_abs()->val == 0) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value * as<abs_imm>(rhs())->value)), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val * rhs()->as_abs()->val)), eliminate(), true;
       }
       return changed;
    case _udiv:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
+      if (rhs()->is_abs()) {
+         if (!RSN_LIKELY(rhs()->as_abs()->val)) // x86 semantics
             return insn_oops::make(this), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
+         if (rhs()->as_abs()->val == 1) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value / as<abs_imm>(rhs())->value)), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val / rhs()->as_abs()->val)), eliminate(), true;
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) { // algebraic simplification
+      if (lhs()->is_abs() && lhs()->as_abs()->val == 0) { // algebraic simplification
          auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_0);
          return eliminate(), true;
       }
-      if (lhs()->equals(rhs())) { // algebraic simplification
+      if ( lhs()->is_base_rel() && rhs()->is_base_rel() && lhs()->is_base_rel()->id == rhs()->is_base_rel()->id ||
+           lhs()->is_disp_rel() && rhs()->is_disp_rel() && lhs()->is_disp_rel()->id == rhs()->is_disp_rel()->id &&
+           lhs()->is_disp_rel()->add == rhs()->is_disp_rel()->add || lhs() == rhs() ) { // algebraic simplification
          auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          return insn_mov::make(this, std::move(dest()), abs_1), eliminate(), true;
       }
       return {};
    case _urem:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
+      if (rhs()->is_abs()) {
+         if (!RSN_LIKELY(rhs()->as_abs()->val)) // x86 semantics
             return insn_oops::make(this), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
+         if (rhs()->as_abs()->val == 1) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value % as<abs_imm>(rhs())->value)), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val % rhs()->as_abs()->val)), eliminate(), true;
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value || lhs()->equals(rhs())) { // algebraic simplification
+      if ( lhs()->is_abs() && lhs()->as_abs()->val == 0 ||
+           lhs()->is_base_rel() && rhs()->is_base_rel() && lhs()->is_base_rel()->id == rhs()->is_base_rel()->id ||
+           lhs()->is_disp_rel() && rhs()->is_disp_rel() && lhs()->is_disp_rel()->id == rhs()->is_disp_rel()->id &&
+           lhs()->is_disp_rel()->add == rhs()->is_disp_rel()->add || lhs() == rhs() ) { // algebraic simplification
          auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         insn_mov::make(this, std::move(dest()), abs_0);
-         return eliminate(), true;
-      }
-      return {};
-   case _smul:
-      if (is<abs_imm>(lhs())) {
-         if (!is<abs_imm>(rhs())) // canonicalization
-            changed = (lhs().swap(rhs()), true);
-      } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
-         return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()),
-               abs_imm::make((long long)as<abs_imm>(lhs())->value * (long long)as<abs_imm>(rhs())->value)), eliminate(), true;
-      }
-      return changed;
-   case _sdiv:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
-            return insn_oops::make(this), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (is<abs_imm>(lhs())) { // constant folding
-            if (RSN_UNLIKELY(as<abs_imm>(lhs())->value == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(as<abs_imm>(rhs())->value == -1))
-               insn_oops::make(this); // x86 semantics
-            else
-               insn_mov::make(this, std::move(dest()), abs_imm::make((long long)as<abs_imm>(lhs())->value / (long long)as<abs_imm>(rhs())->value));
-            return eliminate(), true;
-         }
-      }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) { // algebraic simplification
-         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         insn_mov::make(this, std::move(dest()), abs_0), eliminate();
-         return true;
-      }
-      if (lhs()->equals(rhs())) { // algebraic simplification
-         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         insn_mov::make(this, std::move(dest()), abs_1);
-         return eliminate(), true;
-      }
-      return {};
-   case _srem:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
-            return insn_oops::make(this), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-         if (is<abs_imm>(lhs())) { // constant folding
-            if (RSN_UNLIKELY(as<abs_imm>(lhs())->value == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(as<abs_imm>(rhs())->value == -1))
-               insn_oops::make(this); // x86 semantics
-            else
-               insn_mov::make(this, std::move(dest()), abs_imm::make((long long)as<abs_imm>(lhs())->value % (long long)as<abs_imm>(rhs())->value));
-            return eliminate(), true;
-         }
-      }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value || lhs()->equals(rhs())) { // algebraic simplification
-         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         insn_mov::make(this, std::move(dest()), abs_0);
-         return eliminate(), true;
-      }
-      return {};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      if (is<abs_imm>(lhs())) {
-         if (is<abs_imm>(rhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value * as<abs_imm>(rhs())->value)), eliminate(), true;
-         changed = (lhs().swap(rhs()), true); // canonicalization
-      } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
-         return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-      }
-      return changed;
-
-
-
-
-
-
-
-      if (is<abs_imm>(lhs()) && !is<abs_imm>(rhs()))
-         changed = (lhs().swap(rhs()), true); // canonicalization
-      else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
-         return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value + as<abs_imm>(rhs())->value)), eliminate(), true;
-         if (is<base_rel>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), disp_rel::make(as<base_rel>(lhs()), as<abs_imm>(rhs())->value), eliminate(), true;
-         if (is<disp_rel>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), disp_rel::make(as<disp_rel>(lhs())->base, as<disp_rel>(lhs())->offset + as<abs_imm>(rhs())->value), eliminate(), true;
-      }
-      return changed;
-
-
-
-
-      // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-
-
-      if (is<abs_imm>(rhs()) && as<abs_imm>(rhs())->value == 0) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-
-
-   
-      if (is<abs_imm>(lhs())) {
-         if (is<abs_imm>(rhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value + as<abs_imm>(rhs())->value)), eliminate(), true;
-         changed = (lhs().swap(rhs()), true); // canonicalization
-      } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
-         return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs()) && as<abs_imm>(rhs())->value == 0) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-# if 0
-      if (is<abs_imm>(rhs()) {
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (is<off_rel>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()),
-               off_rel::make(as<off_rel>(lhs())->base, as<off_rel>(lhs())->disp + as<abs_imm>(rhs())->value)), eliminate(), true;
-         else
-         if (is<rel_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()),
-               off_rel::make(std::move(lhs()), as<abs_imm>(rhs())->value)), eliminate(), true;
-      }
-
-
-
-      if (is<rel_imm>(lhs())) {
-         return is<off_rel>(lhs())
-      }
-      return changed;
-
-
-      if (is<off_rel>(lhs())) {
-         if (is<imm_val>(rhs())) off_rel::make();
-            
-      } else
-      if (is<rel_imm>(lhs()) && is<imm_val>(lhs())) // constant folding
-# endif
-      return changed;
-   case _sub:
-      if (is<abs_imm>(rhs())) {
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value - as<abs_imm>(rhs())->value)), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-      }
-      if (lhs()->equals(rhs())) // algebraic simplification
          return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-      return {};
-   case _umul:
-      if (is<abs_imm>(lhs())) {
-         if (is<abs_imm>(rhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value * as<abs_imm>(rhs())->value)), eliminate(), true;
-         changed = (lhs().swap(rhs()), true); // canonicalization
-      } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
-         return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-      }
-      return changed;
-   case _udiv:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
-            return insn_oops::make(this), eliminate(), true;
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value / as<abs_imm>(rhs())->value)), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-      }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) { // algebraic simplification
-         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         insn_mov::make(this, std::move(dest()), abs_0);
-         return eliminate(), true;
-      }
-      if (lhs()->equals(rhs())) { // algebraic simplification
-         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         return insn_mov::make(this, std::move(dest()), abs_1), eliminate(), true;
-      }
-      return {};
-   case _urem:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
-            return insn_oops::make(this), eliminate(), true;
-         if (is<abs_imm>(lhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value % as<abs_imm>(rhs())->value)), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
-      }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value || lhs()->equals(rhs())) { // algebraic simplification
-         auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         insn_mov::make(this, std::move(dest()), abs_0);
-         return eliminate(), true;
       }
       return {};
    case _smul:
-      if (is<abs_imm>(lhs())) {
-         if (is<abs_imm>(rhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()),
-               abs_imm::make((long long)as<abs_imm>(lhs())->value * (long long)as<abs_imm>(rhs())->value)), eliminate(), true;
-         changed = (lhs().swap(rhs()), true); // canonicalization
+      if (lhs()->is_abs()) {
+         if (!rhs()->is_abs()) // canonicalization
+            changed = (lhs().swap(rhs()), true);
       } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
+      if (lhs()->is_imm() && !rhs()->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
+      if (rhs()->is_abs()) {
+         if (rhs()->as_abs()->val == 1) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == 0) // algebraic simplification
+         if (rhs()->as_abs()->val == 0) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding
+            return insn_mov::make(this, std::move(dest()), abs::make((long long)lhs()->as_abs()->val * (long long)rhs()->as_abs()->val)), eliminate(), true;
       }
       return changed;
    case _sdiv:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
+      if (rhs()->is_abs()) {
+         if (!RSN_LIKELY(rhs()->as_abs()->val)) // x86 semantics
             return insn_oops::make(this), eliminate(), true;
-         if (is<abs_imm>(lhs())) { // constant folding
-            if (RSN_UNLIKELY(as<abs_imm>(lhs())->value == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(as<abs_imm>(rhs())->value == -1))
-               insn_oops::make(this); // x86 semantics
+         if (rhs()->as_abs()->val == 1) // algebraic simplification
+            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+         if (lhs()->is_abs()) { // constant folding
+            if (RSN_UNLIKELY(lhs()->as_abs()->val == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(rhs()->as_abs()->val == -1)) // x86 semantics
+               insn_oops::make(this);
             else
-               insn_mov::make(this, std::move(dest()), abs_imm::make((long long)as<abs_imm>(lhs())->value / (long long)as<abs_imm>(rhs())->value));
+               insn_mov::make(this, std::move(dest()), abs_imm::make((long long)lhs()->as_abs()->val / (long long)rhs()->as_abs()->val));
             return eliminate(), true;
          }
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) { // algebraic simplification
+      if (lhs()->is_abs() && lhs()->as_abs()->val == 0) { // algebraic simplification
          auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
-         insn_mov::make(this, std::move(dest()), abs_0), eliminate();
-         return true;
+         insn_mov::make(this, std::move(dest()), abs_0);
+         return eliminate(), true;
       }
-      if (lhs()->equals(rhs())) { // algebraic simplification
+      if ( lhs()->is_base_rel() && rhs()->is_base_rel() && lhs()->is_base_rel()->id == rhs()->is_base_rel()->id ||
+           lhs()->is_disp_rel() && rhs()->is_disp_rel() && lhs()->is_disp_rel()->id == rhs()->is_disp_rel()->id &&
+           lhs()->is_disp_rel()->add == rhs()->is_disp_rel()->add || lhs() == rhs() ) { // algebraic simplification
          auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_1);
          return eliminate(), true;
       }
       return {};
    case _srem:
-      if (is<abs_imm>(rhs())) {
-         if (!RSN_LIKELY(as<abs_imm>(rhs())->value)) // x86 semantics
+      if (rhs()->is_abs()) {
+         if (!RSN_LIKELY(rhs()->as_abs()->val)) // x86 semantics
             return insn_oops::make(this), eliminate(), true;
-         if (is<abs_imm>(lhs())) { // constant folding
-            if (RSN_UNLIKELY(as<abs_imm>(lhs())->value == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(as<abs_imm>(rhs())->value == -1))
-               insn_oops::make(this); // x86 semantics
+         if (rhs()->as_abs()->val == 1) // algebraic simplification
+            return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
+         if (lhs()->is_abs()) { // constant folding
+            if (RSN_UNLIKELY(lhs()->as_abs()->val == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(rhs()->as_abs()->val == -1)) // x86 semantics
+               insn_oops::make(this);
             else
-               insn_mov::make(this, std::move(dest()), abs_imm::make((long long)as<abs_imm>(lhs())->value % (long long)as<abs_imm>(rhs())->value));
+               insn_mov::make(this, std::move(dest()), abs_imm::make((long long)lhs()->as_abs()->val % (long long)rhs()->as_abs()->val));
             return eliminate(), true;
          }
-         if (as<abs_imm>(rhs())->value == 1) // algebraic simplification
-            return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value || lhs()->equals(rhs())) { // algebraic simplification
+      if ( lhs()->is_abs() && lhs()->as_abs()->val == 0 ||
+           lhs()->is_base_rel() && rhs()->is_base_rel() && lhs()->is_base_rel()->id == rhs()->is_base_rel()->id ||
+           lhs()->is_disp_rel() && rhs()->is_disp_rel() && lhs()->is_disp_rel()->id == rhs()->is_disp_rel()->id &&
+           lhs()->is_disp_rel()->add == rhs()->is_disp_rel()->add || lhs() == rhs() ) { // algebraic simplification
          auto bb = bblock::make(owner()->owner()); insn_oops::make(bb); insn_br::make_bne(this, std::move(rhs()), abs_0, owner()->next(), bb), split(this);
          insn_mov::make(this, std::move(dest()), abs_0);
          return eliminate(), true;
       }
       return {};
+
+      static constexpr equals = [](operand *lhs, operand *rhs) noexcept{ return
+         lhs->is_abs() && rhs->is_abs() && lhs->as_abs()->val == rhs->as_abs()->val ||
+         lhs->is_rel_base() && rhs->is_rel_base() && lhs->as_rel_base()->id == rhs->as_rel_base()->id ||
+         lhs->is_rel_disp() && rhs->is_rel_disp() && lhs->as_rel_disp()->base->id == rhs->as_rel_disp()->base->id &&
+         lhs->as_rel_disp()->add == rhs->as_rel_disp()->add || lhs == rhs;
+      };
    case _and:
-      if (is<abs_imm>(lhs())) {
-         if (is<abs_imm>(rhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value & as<abs_imm>(rhs())->value)), eliminate(), true;
-         changed = (lhs().swap(rhs()), true); // canonicalization
+      if (lhs()->is_abs()) {
+         if (!rhs()->is_abs()) // canonicalization
+            changed = (lhs().swap(rhs()), true);
       } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
+      if (lhs()->is_imm() && !rhs()->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == ~0ull || lhs()->equals(rhs())) // algebraic simplification
+      if (equals(lhs(), rhs())) // algebraic simplification
+         return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+      if (rhs()->is_abs()) {
+         if (rhs()->as_abs()->val == ~0ull) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == +0ull) // algebraic simplification
+         if (rhs()->as_abs()->val == +0ull) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val & rhs()->as_abs()->val)), eliminate(), true;
       }
       return changed;
    case _or:
-      if (is<abs_imm>(lhs())) {
-         if (is<abs_imm>(rhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value | as<abs_imm>(rhs())->value)), eliminate(), true;
-         changed = (lhs().swap(rhs()), true); // canonicalization
+      if (lhs()->is_abs()) {
+         if (!rhs()->is_abs()) // canonicalization
+            changed = (lhs().swap(rhs()), true);
       } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
+      if (lhs()->is_imm() && !rhs()->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs())) {
-         if (as<abs_imm>(rhs())->value == ~0ull || lhs()->equals(rhs())) // algebraic simplification
+      if (equals(lhs(), rhs())) // algebraic simplification
+         return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+      if (rhs()->is_abs()) {
+         if (rhs()->as_abs()->val == +0ull) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-         if (as<abs_imm>(rhs())->value == +0ull) // algebraic simplification
+         if (rhs()->as_abs()->val == ~0ull) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), abs_ones), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val | rhs()->as_abs()->val)), eliminate(), true;
       }
       return changed;
    case _xor:
-      if (is<abs_imm>(lhs())) {
-         if (is<abs_imm>(rhs())) // constant folding
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value ^ as<abs_imm>(rhs())->value)), eliminate(), true;
-         changed = (lhs().swap(rhs()), true); // canonicalization
+      if (lhs()->is_abs()) {
+         if (!rhs()->is_abs()) // canonicalization
+            changed = (lhs().swap(rhs()), true);
       } else
-      if (is<imm_val>(lhs()) && !is<imm_val>(rhs())) // canonicalization
+      if (lhs()->is_imm() && !rhs()->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
-      if (is<abs_imm>(rhs()) && as<abs_imm>(rhs())->value == +0ull) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
-      if (lhs()->equals(rhs())) // algebraic simplification
+      if (equals(lhs(), rhs())) // algebraic simplification
          return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
+      if (rhs()->is_abs()) {
+         if (rhs()->as_abs()->val == +0ull) // algebraic simplification
+            return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding
+            return insn_mov::make(this, std::move(dest()), abs::make(lhs()->as_abs()->val ^ rhs()->as_abs()->val)), eliminate(), true;
+      }
       return changed;
    case _shl:
-      if (!is<abs_imm>(rhs())) {
-         if (is<abs_imm>(lhs())) // constant folding (x86 semantics)
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value << as<abs_imm>(rhs())->value & 0x3F)), eliminate(), true;
-         if (!as<abs_imm>(rhs())->value) // algebraic simplification
+      if (rhs()->is_abs()) {
+         if (!(rhs()->as_abs()->val & 0x3F)) // algebraic simplification (x86 semantics)
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding (x86 semantics)
+            return insn_mov::make(this, std::move(dest()), abs_imm::make(lhs()->as_abs()->val << (rhs()->as_abs()->val & 0x3F))), eliminate(), true;
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
+      if (lhs()->is_abs() && !lhs()->as_abs()->val) // algebraic simplification
+         return insn_mov::make(this, std::move(dest()), std::move(lhs()))), eliminate(), true;
       return {};
    case _ushr:
-      if (is<abs_imm>(rhs())) {
-         if (is<abs_imm>(lhs())) // constant folding (x86 semantics)
-            return insn_mov::make(this, std::move(dest()), abs_imm::make(as<abs_imm>(lhs())->value >> as<abs_imm>(rhs())->value & 0x3F)), eliminate(), true;
-         if (!as<abs_imm>(rhs())->value) // algebraic simplification
+      if (rhs()->is_abs()) {
+         if (!(rhs()->as_abs()->val & 0x3F)) // algebraic simplification (x86 semantics)
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding (x86 semantics)
+            return insn_mov::make(this, std::move(dest()), abs_imm::make(lhs()->as_abs()->val >> (rhs()->as_abs()->val & 0x3F))), eliminate(), true;
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
+      if (lhs()->is_abs() && !lhs()->as_abs()->val) // algebraic simplification
+         return insn_mov::make(this, std::move(dest()), std::move(lhs()))), eliminate(), true;
       return {};
    case _sshr:
-      if (is<abs_imm>(rhs())) {
-         if (is<abs_imm>(lhs())) // constant folding (x86 semantics)
-            return insn_mov::make(this, std::move(dest()),
-               abs_imm::make((long long)as<abs_imm>(lhs())->value >> as<abs_imm>(rhs())->value & 0x3F)), eliminate(), true;
-         if (!as<abs_imm>(rhs())->value) // algebraic simplification
+      if (rhs()->is_abs()) {
+         if (!(rhs()->as_abs()->val & 0x3F)) // algebraic simplification (x86 semantics)
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+         if (lhs()->is_abs()) // constant folding (x86 semantics)
+            return insn_mov::make(this, std::move(dest()),
+               (long long)abs_imm::make(lhs()->as_abs()->val >> (long long)(rhs()->as_abs()->val & 0x3F))), eliminate(), true;
       }
-      if (is<abs_imm>(lhs()) && !as<abs_imm>(lhs())->value) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
+      if (lhs()->is_abs() && !lhs()->as_abs()->val) // algebraic simplification
+         return insn_mov::make(this, std::move(dest()), std::move(lhs()))), eliminate(), true;
       return {};
    }
 }
