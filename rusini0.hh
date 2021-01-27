@@ -88,9 +88,10 @@
    # define RSN_IF_WITHOUT_MT(...) __VA_ARGS__
 # endif
 
-# if __cplusplus && RSN_USE_DEBUG
-   //# include <iostream>
-   //namespace rsn::aux { using std::cerr; }
+# if RSN_USE_DEBUG
+   # define RSN_IF_USE_DEBUG(...) __VA_ARGS__
+# else
+   # define RSN_IF_USE_DEBUG(...)
 # endif
 
 # endif // # ifndef RSN_INCLUDED_RUSINI0

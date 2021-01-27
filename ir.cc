@@ -36,7 +36,7 @@ bool insn_binop::simplify() {
          if (!rhs()->is_abs()) // canonicalization
             changed = (lhs().swap(rhs()), true);
       } else
-      if (!lhs()->is_reg() && rhs()->is_reg()) // canonicalization
+      if (lhs->is_imm() && !rhs->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
       if (rhs()->is_abs()) {
          if (rhs()->as_abs()->val == 0) // algebraic simplification
@@ -92,7 +92,7 @@ bool insn_binop::simplify() {
          if (!rhs()->is_abs()) // canonicalization
             changed = (lhs().swap(rhs()), true);
       } else
-      if (!lhs()->is_reg() && rhs()->is_reg()) // canonicalization
+      if (lhs->is_imm() && !rhs->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
       if (rhs()->is_abs()) {
          if (rhs()->as_abs()->val == 1) // algebraic simplification
@@ -148,7 +148,7 @@ bool insn_binop::simplify() {
          if (!rhs()->is_abs()) // canonicalization
             changed = (lhs().swap(rhs()), true);
       } else
-      if (!lhs()->is_reg() && rhs()->is_reg()) // canonicalization
+      if (lhs->is_imm() && !rhs->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
       if (rhs()->is_abs()) {
          if (rhs()->as_abs()->val == 1) // algebraic simplification
@@ -214,7 +214,7 @@ bool insn_binop::simplify() {
          if (!rhs()->is_abs()) // canonicalization
             changed = (lhs().swap(rhs()), true);
       } else
-      if (!lhs()->is_reg() && rhs()->is_reg()) // canonicalization
+      if (lhs->is_imm() && !rhs->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
       if (rhs()->is_abs()) {
          if (rhs()->as_abs()->val == ~0ull) // algebraic simplification
@@ -234,7 +234,7 @@ bool insn_binop::simplify() {
          if (!rhs()->is_abs()) // canonicalization
             changed = (lhs().swap(rhs()), true);
       } else
-      if (!lhs()->is_reg() && rhs()->is_reg()) // canonicalization
+      if (lhs->is_imm() && !rhs->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
       if (rhs()->is_abs()) {
          if (rhs()->as_abs()->val == +0ull) // algebraic simplification
@@ -254,7 +254,7 @@ bool insn_binop::simplify() {
          if (!rhs()->is_abs()) // canonicalization
             changed = (lhs().swap(rhs()), true);
       } else
-      if (!lhs()->is_reg() && rhs()->is_reg()) // canonicalization
+      if (lhs->is_imm() && !rhs->is_imm()) // canonicalization
          return lhs().swap(rhs()), true;
       if (rhs()->is_abs()) {
          if (rhs()->as_abs()->val == +0ull) // algebraic simplification
