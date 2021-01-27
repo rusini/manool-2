@@ -28,6 +28,7 @@ static RSN_INLINE inline void split(insn *in) { // split the BB at the insn
 bool insn_binop::simplify() {
    bool changed{};
    switch (op) {
+      typedef lib::smart_ptr<operand> operand_ptr;
    default:
       RSN_UNREACHABLE();
    case _add:
@@ -45,8 +46,8 @@ bool insn_binop::simplify() {
          if (lhs()->is_rel_base()) // constant folding
             return insn_mov::make(this, std::move(dest()), rel_disp::make(std::move(lhs())->as_smart_rel_base(), +rhs()->as_abs()->val), eliminate(), true;
          if (lhs()->is_rel_disp()) // constant folding
-            return insn_mov::make(this, std::move(dest()), lhs()->as_rel_disp()->add + rhs()->as_abs()->val == 0 ? (lib::smart_ptr<operand>)lhs()->as_rel_disp()->base :
-               (lib::smart_ptr<operand>)rel_disp::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->add + rhs()->as_abs()->val), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), lhs()->as_rel_disp()->add + rhs()->as_abs()->val == 0 ? (operand_ptr)lhs()->as_rel_disp()->base :
+               (operand_ptr)rel_disp::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->add + rhs()->as_abs()->val), eliminate(), true;
       }
       return changed;
    case _sub:
@@ -58,8 +59,8 @@ bool insn_binop::simplify() {
          if (lhs()->is_rel_base()) // constant folding
             return insn_mov::make(this, std::move(dest()), rel_disp::make(std::move(lhs())->as_smart_rel_base(), -rhs()->as_abs()->val), eliminate(), true;
          if (lhs()->is_rel_disp()) // constant folding
-            return insn_mov::make(this, std::move(dest()), lhs()->as_rel_disp()->add - rhs()->as_abs()->val == 0 ? (lib::smart_ptr<operand>)lhs()->as_rel_disp()->base :
-               (lib::smart_ptr<operand>)rel_disp::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->add - rhs()->as_abs()->val), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), lhs()->as_rel_disp()->add - rhs()->as_abs()->val == 0 ? (operand_ptr)lhs()->as_rel_disp()->base :
+               (operand_ptr)rel_disp::make(lhs()->as_rel_disp()->base, lhs()->as_rel_disp()->add - rhs()->as_abs()->val), eliminate(), true;
          // canonicalization
          return insn_binop::make_add(this, std::move(dest()), std::move(lhs()), abs::make(-rhs()->as_abs()->val)), eliminate(), true;
       }
