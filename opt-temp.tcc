@@ -3,8 +3,7 @@
 # ifdef RSN_OPT_TEMP_PROC
 # endif
 
-# ifdef RSN_OPT_TEMP_VREG
-   lib::smart_ptr<vreg> vr;
+# ifdef RSN_OPT_TEMP_REG
 # endif
 
 # ifdef RSN_OPT_TEMP_BBLOCK

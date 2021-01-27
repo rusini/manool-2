@@ -75,11 +75,11 @@ namespace rsn::opt {
    */
 
    class operand: protected aux::node, lib::smart_rc { // data operand of "infinite" width (abs, rel, vreg, etc.)... excluding jump targets
-      RSN_INLINE operand(decltype(kind) kind) noexcept: kind(kind) {}
+      RSN_INLINE explicit operand(decltype(kind) kind) noexcept: kind(kind) {}
       virtual ~operand() = 0;
       template<typename> friend class lib::smart_ptr;
-      friend imm; // descendant
-      friend reg; // ditto
+      friend class imm; // descendant
+      friend class reg; // ditto
    public: // fast (and trivial) RTTI
       RSN_INLINE bool is_imm() const noexcept      { return kind >= _imm; }
       RSN_INLINE bool is_abs() const noexcept      { return kind == _abs; }
@@ -105,7 +105,8 @@ namespace rsn::opt {
       RSN_INLINE auto as_smart_rel_disp() noexcept;
       RSN_INLINE auto as_smart_reg() noexcept;
    public: // miscellaneous
-      virtual bool equals(operand *) const noexcept = 0; // "provably denotes the same value at some point"
+      virtual bool operator==(operand *) noexcept = 0; // "provably denotes the same value at some point"
+      RSN_INLINE bool operator!=(operand *rhs) noexcept { return !(*this == rhs); }
    private: // internal representation
       const enum: unsigned char { _imm = 1, _abs = 1, _rel_base = 3, _proc, _data, _rel_disp = 2, _reg = 0 } kind;
    # if RSN_USE_DEBUG
@@ -119,12 +120,12 @@ namespace rsn::opt {
    RSN_INLINE inline operand::~operand() = default;
 
    class imm: public operand { // absolute or relocatable immediate constant
-      RSN_INLINE imm(decltype(kind) kind = _imm) noexcept: operand{kind} {}
+      RSN_INLINE explicit imm(decltype(kind) kind) noexcept: operand{kind} {}
       ~imm() override = 0;
       template<typename> friend class lib::smart_ptr;
-      friend abs;      // descendant
-      friend rel_base; // ditto
-      friend rel_disp; // ditto
+      friend class abs;      // descendant
+      friend class rel_base; // ditto
+      friend class rel_disp; // ditto
    };
    RSN_INLINE inline imm::~imm() = default;
 
@@ -134,9 +135,9 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(val) val) { return lib::smart_ptr<abs_imm>::make(std::move(val)); }
    public: // miscellaneous
-      RSN_INLINE bool equals(operand *rhs) const noexcept override { return RSN_UNLIKELY(rhs->is_abs()) && rhs->as_abs()->val == val; }
+      RSN_INLINE bool operator==(operand *rhs) noexcept override { return RSN_UNLIKELY(rhs->is_abs()) && rhs->as_abs()->val == val; }
    private: // implementation helpers
-      RSN_INLINE explicit abs(decltype(val) &&val, decltype(kind) kind = _abs) noexcept: imm{kind}, val(std::move(val)) {}
+      RSN_INLINE explicit abs(decltype(val) &&val) noexcept: imm{_abs}, val(std::move(val)) {}
       ~abs() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -154,13 +155,13 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<rel_base>::make(std::move(id)); }
    public: // miscellaneous
-      RSN_INLINE bool equals(operand *rhs) const noexcept final { return RSN_UNLIKELY(rhs->is_rel_base()) && rhs->as_rel_base()->id == id; }
+      RSN_INLINE bool operator==(operand *rhs) noexcept final { return RSN_UNLIKELY(rhs->is_rel_base()) && rhs->as_rel_base()->id == id; }
    private: // implementation helpers
-      RSN_INLINE rel_base(decltype(id) &&id, decltype(kind) kind = _rel_base): imm{kind}, id(std::move(id)) {}
+      RSN_INLINE explicit rel_base(decltype(id) &&id, decltype(kind) kind = _rel_base) noexcept: imm{kind}, id(std::move(id)) {}
       ~rel_base() override = default;
       template<typename> friend class lib::smart_ptr;
-      friend proc; // descendant
-      friend data; // ditto
+      friend class proc; // descendant
+      friend class data; // ditto
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { std::fprintf(stderr, "X%u = extern $0x%016llX%016llX\n\n", sn, id.second, id.first); }
@@ -171,11 +172,11 @@ namespace rsn::opt {
    };
 
    class proc final: public rel_base, // procedure, AKA function, subroutine, etc. (translation unit)
-      public lib::collection_mixin<proc, bblock> {
+      public lib::collection_mixin<proc, class bblock> {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
    private: // implementation helpers
-      RSN_INLINE explicit proc(decltype(id) &&id, decltype(kind) kind = _proc): rel_base{std::move(id), kind} {}
+      RSN_INLINE explicit proc(decltype(id) &&id) noexcept: rel_base{std::move(id), _proc} {}
       ~proc() override;
       template<typename> friend class lib::smart_ptr;
    # ifdef RSN_USE_DEBUG
@@ -195,11 +196,11 @@ namespace rsn::opt {
 
    class data final: public rel_base { // static initialized-data block
    public: // public data members
-      const std::vector<lib::smart_ptr<imm_val>> values;
+      const std::vector<lib::smart_ptr<imm>> values;
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id, decltype(values) values) { return lib::smart_ptr<data>::make(std::move(id), std::move(values)); }
    private: // implementation helpers
-      RSN_INLINE explicit data(decltype(id) &&id, decltype(values) &&values, decltype(kind) kind = _data): rel_base{std::move(id), kind}, values(std::move(values)) {}
+      RSN_INLINE explicit data(decltype(id) &&id, decltype(values) &&values) noexcept: rel_base{std::move(id), _data}, values(std::move(values)) {}
       ~data() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -225,7 +226,7 @@ namespace rsn::opt {
       RSN_INLINE bool equals(const operand *rhs) const noexcept override
          { return RSN_UNLIKELY(is<disp_rel>(rhs)) && RSN_UNLIKELY(as<const disp_rel>(rhs)->base->equals(base)) && as<const disp_rel>(rhs)->offset == offset; }
    private: // implementation helpers
-      RSN_INLINE explicit rel_disp(decltype(base) base, decltype(offset) offset) noexcept: imm{_rel_disp}, base(std::move(base)), add(std::move(add)) {}
+      RSN_INLINE explicit rel_disp(decltype(base) base, decltype(add) add) noexcept: imm{_rel_disp}, base(std::move(base)), add(std::move(add)) {}
       ~rel_disp() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -239,7 +240,7 @@ namespace rsn::opt {
 
    class reg final: public operand { // generalized (virtual or real) register
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make() { return lib::smart_ptr<reg>::make(); }
+      RSN_INLINE RSN_NODISCARD static auto make(const char *name = {}) { return lib::smart_ptr<reg>::make(name); }
    private: // implementation helpers
       RSN_INLINE explicit reg(const char *name = {}) noexcept RSN_IF_USE_DEBUG(: name(name)) {}
       ~reg() override = default;
@@ -256,9 +257,9 @@ namespace rsn::opt {
    # endif // # if RSN_USE_DEBUG
    public: // embedded temporary data
       struct {
-      # define RSN_OPT_TEMP_VREG
+      # define RSN_OPT_TEMP_REG
          # include "opt-temp.tcc"
-      # undef RSN_OPT_TEMP_VREG
+      # undef RSN_OPT_TEMP_REG
       } temp;
    };
 
