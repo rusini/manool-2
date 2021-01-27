@@ -223,8 +223,8 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(base) base, decltype(add) add) { return lib::smart_ptr<rel_disp>::make(std::move(base), std::move(add)); }
    public: // miscellaneous
-      RSN_INLINE bool equals(const operand *rhs) const noexcept override
-         { return RSN_UNLIKELY(is<disp_rel>(rhs)) && RSN_UNLIKELY(as<const disp_rel>(rhs)->base->equals(base)) && as<const disp_rel>(rhs)->offset == offset; }
+      RSN_INLINE bool operator==(operand *rhs) noexcept override
+         { return RSN_UNLIKELY(rhs->is_disp_rel()) && RSN_UNLIKELY(rhs->is_disp_rel()->base == base) && rhs->is_disp_rel()->add == add; }
    private: // implementation helpers
       RSN_INLINE explicit rel_disp(decltype(base) base, decltype(add) add) noexcept: imm{_rel_disp}, base(std::move(base)), add(std::move(add)) {}
       ~rel_disp() override = default;
@@ -246,7 +246,7 @@ namespace rsn::opt {
       ~reg() override = default;
       template<typename> friend class lib::smart_ptr;
    public:
-      RSN_INLINE bool equals(const operand *rhs) const noexcept final { return rhs == this; }
+      RSN_INLINE bool operator==(operand *rhs) noexcept final { return rhs == this; }
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { if (!name) std::fprintf(stderr, "R%u = reg\n\n", sn); else std::fprintf(stderr, "R%s = reg\n\n", name); }
@@ -320,8 +320,8 @@ namespace rsn::opt {
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
    public: // querying contents
-      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>               { return _outputs; }
-      RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>   { return _outputs; }
+      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<reg> *>                { return _outputs; }
+      RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<reg> *>    { return _outputs; }
       RSN_INLINE auto inputs() noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
       RSN_INLINE auto inputs() const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
       RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                            { return _targets; }
@@ -329,7 +329,7 @@ namespace rsn::opt {
    public: // miscellaneous
       RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification, and canonicalization
    protected: // internal representation
-      lib::range_ref<lib::smart_ptr<vreg> *> _outputs{nullptr, nullptr};   // the compiler is to eliminate redundant stores in initialization
+      lib::range_ref<lib::smart_ptr<reg> *> _outputs{nullptr, nullptr};    // the compiler is to eliminate redundant stores in initialization
       lib::range_ref<lib::smart_ptr<operand> *> _inputs{nullptr, nullptr}; // ditto
       lib::range_ref<bblock **> _targets{nullptr, nullptr};                // ditto
    # if RSN_USE_DEBUG
