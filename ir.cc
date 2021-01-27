@@ -265,7 +265,7 @@ bool insn_binop::simplify() {
       if ( lhs->is_rel_base() && rhs->is_rel_base() && lhs->as_rel_base()->id == rhs->as_rel_base()->id ||
            lhs->is_rel_disp() && rhs->is_rel_disp() && lhs->as_rel_disp()->base->id == rhs->as_rel_disp()->base->id &&
            lhs->as_rel_disp()->add == rhs->as_rel_disp()->add || lhs == rhs ) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
+         return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
       return changed;
    case _shl:
       if (rhs()->is_abs()) {
