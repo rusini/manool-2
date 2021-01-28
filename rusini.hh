@@ -71,7 +71,7 @@ namespace rsn::lib {
       RSN_INLINE smart_ptr &operator=(smart_ptr &&rhs) noexcept { swap(rhs); return *this; }
       RSN_INLINE void swap(smart_ptr &rhs) noexcept { using std::swap; swap(rep, rhs.rep); }
    public: // miscellaneous operations
-      RSN_INLINE RSN_NODISCARD static auto make(Obj *rhs) noexcept { return smart_ptr(rhs); }
+      template<typename Rhs> RSN_INLINE RSN_NODISCARD static auto make(Rhs rhs) noexcept { static_assert(std::is_same_v<Rhs, Obj *>); return smart_ptr(rhs); }
       RSN_INLINE smart_ptr(Obj *rhs) noexcept: rep(rhs) { retain(); }
       template<typename Rhs> RSN_INLINE smart_ptr(const smart_ptr<Rhs> &rhs) noexcept: rep(rhs) { retain(); }
       template<typename Rhs> RSN_INLINE smart_ptr(smart_ptr<Rhs> &&rhs) noexcept: rep(rhs) { rhs.rep = {}; }
