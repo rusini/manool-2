@@ -46,7 +46,7 @@ namespace rsn::lib {
    };
    // Downcast for raw pointers to non-copyables
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> is(Src *src) noexcept
-      { static_assert(std::is_convertible_v<Dest *, Src *>); return src->type_check<Dest>(); }
+      { static_assert(std::is_convertible_v<Dest *, Src *>); return src->template type_check<Dest>(); }
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, Dest *> as(Src *src) noexcept
       { static_assert(std::is_convertible_v<Dest *, Src *>); return static_cast<Dest *>(src); }
 

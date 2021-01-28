@@ -88,7 +88,7 @@ namespace rsn::opt {
       friend class imm; // descendant
       friend class reg; // ditto
    public: // fast (and trivial) RTTI
-      template<typename Dest> type_check() const noexcept = delete;
+      template<typename Dest> bool type_check() const noexcept = delete;
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
