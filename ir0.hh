@@ -257,7 +257,7 @@ namespace rsn::opt {
       } temp;
    };
 
-   RSN_INLINE inline auto operand::as_imm() noexcept      { return lib::as<imm>(this); } // TODO: should be free functions?!
+   /*RSN_INLINE inline auto operand::as_imm() noexcept      { return lib::as<imm>(this); } // TODO: should be free functions?!
    RSN_INLINE inline auto operand::as_abs() noexcept      { return lib::as<abs>(this); }
    RSN_INLINE inline auto operand::as_rel_base() noexcept { return lib::as<rel_base>(this); }
    RSN_INLINE inline auto operand::as_proc() noexcept     { return lib::as<proc>(this); }
@@ -271,7 +271,7 @@ namespace rsn::opt {
    RSN_INLINE inline auto operand::as_smart_proc() noexcept     { return lib::as_smart<proc>(this); }
    RSN_INLINE inline auto operand::as_smart_data() noexcept     { return lib::as_smart<data>(this); }
    RSN_INLINE inline auto operand::as_smart_rel_disp() noexcept { return lib::as_smart<rel_disp>(this); }
-   RSN_INLINE inline auto operand::as_smart_reg() noexcept      { return lib::as_smart<reg>(this); }
+   RSN_INLINE inline auto operand::as_smart_reg() noexcept      { return lib::as_smart<reg>(this); }*/
 
    // Basic Blocks and Instructions ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
