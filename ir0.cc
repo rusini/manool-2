@@ -20,14 +20,11 @@
 using namespace rsn::opt;
 
 void proc::dump() const noexcept {
-   std::fprintf(stderr, "P%u = proc $0x%016llX%016llX as\n", sn, id.second, id.first);
-   {  std::unordered_set<vreg *> vregs; std::unordered_set<bblock *> bblocks;
+   std::fprintf(stderr, "P%u = proc $0x%08X...[$0x%016llX%016llX] as\n", sn, (unsigned)(id.second >> 32), id.second, id.first);
+   {  std::unordered_set<bblock *> bblocks;
       for (auto bb: all(this)) for (auto in: all(bb)) {
-         for (auto po: in->outputs()) if ((*po)->owner() != this) vregs.insert(*po);
-         for (auto pi: in->inputs ()) if (is<vreg>(*pi) && as<vreg>(*pi)->owner() != this) vregs.insert(as<vreg>(*pi));
-         for (auto pt: in->targets()) if ((*pt)->owner() != this) bblocks.insert(*pt);
+         for (auto target: in->targets()) if (target->owner() != this) bblocks.insert(target);
       }
-      for (auto it: vregs) log << "  ; Error: Reference to foreign vreg " << it << '\n';
       for (auto it: bblocks) log << "  ; Error: Reference to foreign bblock " << it << '\n';
    }
    for (auto it: all(this)) it->dump();
