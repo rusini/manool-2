@@ -88,29 +88,7 @@ namespace rsn::opt {
       friend class imm; // descendant
       friend class reg; // ditto
    public: // fast (and trivial) RTTI
-      RSN_INLINE bool is_imm() const noexcept      { return kind >= _imm; }
-      RSN_INLINE bool is_abs() const noexcept      { return kind == _abs; }
-      RSN_INLINE bool is_rel_base() const noexcept { return kind >= _rel_base; }
-      RSN_INLINE bool is_proc() const noexcept     { return kind == _proc; }
-      RSN_INLINE bool is_data() const noexcept     { return kind == _data; }
-      RSN_INLINE bool is_rel_disp() const noexcept { return kind == _rel_disp; }
-      RSN_INLINE bool is_reg() const noexcept      { return kind == _reg; }
-   public:
-      RSN_INLINE auto as_imm() noexcept;
-      RSN_INLINE auto as_abs() noexcept;
-      RSN_INLINE auto as_rel_base() noexcept;
-      RSN_INLINE auto as_proc() noexcept;
-      RSN_INLINE auto as_data() noexcept;
-      RSN_INLINE auto as_rel_disp() noexcept;
-      RSN_INLINE auto as_reg() noexcept;
-   public:
-      RSN_INLINE auto as_smart_imm() noexcept;
-      RSN_INLINE auto as_smart_abs() noexcept;
-      RSN_INLINE auto as_smart_rel_base() noexcept;
-      RSN_INLINE auto as_smart_proc() noexcept;
-      RSN_INLINE auto as_smart_data() noexcept;
-      RSN_INLINE auto as_smart_rel_disp() noexcept;
-      RSN_INLINE auto as_smart_reg() noexcept;
+      template<typename Dest> type_check() const noexcept = delete;
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
@@ -135,7 +113,8 @@ namespace rsn::opt {
    public: // public data members
       const unsigned long long val;
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(decltype(val) val) { return lib::smart_ptr<abs>::make(std::move(val)); }
+      RSN_INLINE RSN_NODISCARD static auto make(decltype(val) val)
+         { return lib::smart_ptr<abs>::make(new abs(std::move(val))); }
    private: // implementation helpers
       RSN_INLINE explicit abs(decltype(val) &&val) noexcept: imm{_abs}, val(std::move(val)) {}
       ~abs() override = default;
@@ -153,7 +132,8 @@ namespace rsn::opt {
    public: // public data members
       const std::pair<unsigned long long, unsigned long long> id; // link-time symbol (content hash)
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<rel_base>::make(std::move(id)); }
+      RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id)
+         { return lib::smart_ptr<rel_base>::make(new rel_base(std::move(id))); }
    private: // implementation helpers
       RSN_INLINE explicit rel_base(decltype(id) &&id, decltype(kind) kind = _rel_base) noexcept: imm{kind}, id(std::move(id)) {}
       ~rel_base() override = default;
@@ -173,7 +153,8 @@ namespace rsn::opt {
    class proc final: public rel_base, // procedure, AKA function, subroutine, etc. (translation unit)
       public lib::collection_mixin<proc, bblock> {
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
+      RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id)
+         { return lib::smart_ptr<proc>::make(new proc(std::move(id))); }
    private: // implementation helpers
       RSN_INLINE explicit proc(decltype(id) &&id) noexcept: rel_base{std::move(id), _proc} {}
       ~proc() override;
@@ -197,7 +178,8 @@ namespace rsn::opt {
    public: // public data members
       const std::vector<lib::smart_ptr<imm>> values;
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id, decltype(values) values) { return lib::smart_ptr<data>::make(std::move(id), std::move(values)); }
+      RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id, decltype(values) values)
+         { return lib::smart_ptr<data>::make(new data(std::move(id), std::move(values))); }
    private: // implementation helpers
       RSN_INLINE explicit data(decltype(id) &&id, decltype(values) &&values) noexcept: rel_base{std::move(id), _data}, values(std::move(values)) {}
       ~data() override = default;
@@ -220,7 +202,8 @@ namespace rsn::opt {
       const lib::smart_ptr<rel_base> base; // base relocatable w/o addendum
       const unsigned long long add;        // the addendum
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(decltype(base) base, decltype(add) add) { return lib::smart_ptr<rel_disp>::make(std::move(base), std::move(add)); }
+      RSN_INLINE RSN_NODISCARD static auto make(decltype(base) base, decltype(add) add)
+         { return lib::smart_ptr<rel_disp>::make(new rel_disp(std::move(base), std::move(add))); }
    private: // implementation helpers
       RSN_INLINE explicit rel_disp(decltype(base) base, decltype(add) add) noexcept: imm{_rel_disp}, base(std::move(base)), add(std::move(add)) {}
       ~rel_disp() override = default;
@@ -236,7 +219,8 @@ namespace rsn::opt {
 
    class reg final: public operand { // generalized (virtual or real) register
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(const char *name = {}) { return lib::smart_ptr<reg>::make(name); }
+      RSN_INLINE RSN_NODISCARD static auto make(const char *name = {})
+         { return lib::smart_ptr<reg>::make(new reg(name)); }
    private: // implementation helpers
       RSN_INLINE explicit reg(const char *name = {}) noexcept: operand{_reg} RSN_IF_USE_DEBUG(, name(name)) {}
       ~reg() override = default;
@@ -257,21 +241,13 @@ namespace rsn::opt {
       } temp;
    };
 
-   /*RSN_INLINE inline auto operand::as_imm() noexcept      { return lib::as<imm>(this); } // TODO: should be free functions?!
-   RSN_INLINE inline auto operand::as_abs() noexcept      { return lib::as<abs>(this); }
-   RSN_INLINE inline auto operand::as_rel_base() noexcept { return lib::as<rel_base>(this); }
-   RSN_INLINE inline auto operand::as_proc() noexcept     { return lib::as<proc>(this); }
-   RSN_INLINE inline auto operand::as_data() noexcept     { return lib::as<data>(this); }
-   RSN_INLINE inline auto operand::as_rel_disp() noexcept { return lib::as<rel_disp>(this); }
-   RSN_INLINE inline auto operand::as_reg() noexcept      { return lib::as<reg>(this); }
-
-   RSN_INLINE inline auto operand::as_smart_imm() noexcept      { return lib::as_smart<imm>(this); }
-   RSN_INLINE inline auto operand::as_smart_abs() noexcept      { return lib::as_smart<abs>(this); }
-   RSN_INLINE inline auto operand::as_smart_rel_base() noexcept { return lib::as_smart<rel_base>(this); }
-   RSN_INLINE inline auto operand::as_smart_proc() noexcept     { return lib::as_smart<proc>(this); }
-   RSN_INLINE inline auto operand::as_smart_data() noexcept     { return lib::as_smart<data>(this); }
-   RSN_INLINE inline auto operand::as_smart_rel_disp() noexcept { return lib::as_smart<rel_disp>(this); }
-   RSN_INLINE inline auto operand::as_smart_reg() noexcept      { return lib::as_smart<reg>(this); }*/
+   template<> RSN_INLINE inline bool operand::type_check<imm>() const noexcept      { return kind >= _imm; }
+   template<> RSN_INLINE inline bool operand::type_check<abs>() const noexcept      { return kind == _abs; }
+   template<> RSN_INLINE inline bool operand::type_check<rel_base>() const noexcept { return kind >= _rel_base; }
+   template<> RSN_INLINE inline bool operand::type_check<proc>() const noexcept     { return kind == _proc; }
+   template<> RSN_INLINE inline bool operand::type_check<data>() const noexcept     { return kind == _data; }
+   template<> RSN_INLINE inline bool operand::type_check<rel_disp>() const noexcept { return kind == _rel_disp; }
+   template<> RSN_INLINE inline bool operand::type_check<reg>() const noexcept      { return kind == _reg; }
 
    // Basic Blocks and Instructions ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

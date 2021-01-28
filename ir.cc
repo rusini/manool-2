@@ -16,18 +16,19 @@
 # include <limits> // numeric_limits
 
 namespace rsn::opt {
+   // Some absolute immediate operands to share
+   static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1);
 
-// Some absolute immediate operands to share
-static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1);
+   static RSN_INLINE inline void split(insn *in) { // split the BB at the insn
+      auto bb = RSN_LIKELY(in->owner()->next()) ? bblock::make(in->owner()->next()) : bblock::make(in->owner()->owner());
+      for (auto _in: all(in, {})) _in->reattach(bb);
+   }
+} // namespace rsn::opt
 
-static RSN_INLINE inline void split(insn *in) { // split the BB at the insn
-   auto bb = RSN_LIKELY(in->owner()->next()) ? bblock::make(in->owner()->next()) : bblock::make(in->owner()->owner());
-   for (auto _in: all(in, {})) _in->reattach(bb);
-}
-
-bool insn_binop::simplify() {
+bool rsn::opt::insn_binop::simplify() {
    bool changed{};
    switch (op) {
+      using lib::as;
       typedef lib::smart_ptr<operand> operand;
    default:
       RSN_UNREACHABLE();
@@ -51,6 +52,8 @@ bool insn_binop::simplify() {
       }
       return changed;
    case _sub:
+      if (lhs() == rhs()) // algebraic simplification
+         return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
       if (rhs()->is_abs()) {
          if (as<abs>(rhs())->val == 0) // algebraic simplification
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
@@ -64,8 +67,6 @@ bool insn_binop::simplify() {
          // canonicalization
          return insn_binop::make_add(this, std::move(dest()), std::move(lhs()), abs::make(-as<abs>(rhs())->val)), eliminate(), true;
       }
-      if (lhs() == rhs()) // algebraic simplification
-         return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
       if (lhs()->is_rel_base()) {
          if (rhs()->is_rel_base()) {
             if (as<rel_base>(lhs())->id == as<rel_base>(rhs())->id) // constant folding
@@ -395,4 +396,4 @@ bool insn_call::simplify() {
 }
 # endif
 
-} // namespace rsn::opt
+//} // namespace rsn::opt
