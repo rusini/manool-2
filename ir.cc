@@ -179,10 +179,8 @@ bool rsn::opt::insn_binop::simplify() {
             return insn_mov::make(this, std::move(dest()), std::move(lhs())), eliminate(), true;
          if (is<abs>(lhs())) { // constant folding
             if (RSN_UNLIKELY(as<abs>(lhs())->val == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(as<abs>(rhs())->val == -1)) // x86 semantics
-               insn_oops::make(this);
-            else
-               insn_mov::make(this, std::move(dest()), abs::make((long long)as<abs>(lhs())->val / (long long)as<abs>(rhs())->val));
-            return eliminate(), true;
+               return insn_oops::make(this), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), abs::make((long long)as<abs>(lhs())->val / (long long)as<abs>(rhs())->val)), eliminate(), true;
          }
       }
       if (is<abs>(lhs()) && as<abs>(lhs())->val == 0) // algebraic simplification
@@ -208,10 +206,8 @@ bool rsn::opt::insn_binop::simplify() {
             return insn_mov::make(this, std::move(dest()), abs_0), eliminate(), true;
          if (is<abs>(lhs())) { // constant folding
             if (RSN_UNLIKELY(as<abs>(lhs())->val == std::numeric_limits<long long>::min()) && RSN_UNLIKELY(as<abs>(rhs())->val == -1)) // x86 semantics
-               insn_oops::make(this);
-            else
-               insn_mov::make(this, std::move(dest()), abs::make((long long)as<abs>(lhs())->val % (long long)as<abs>(rhs())->val));
-            return eliminate(), true;
+               return insn_oops::make(this), eliminate(), true;
+            return insn_mov::make(this, std::move(dest()), abs::make((long long)as<abs>(lhs())->val % (long long)as<abs>(rhs())->val)), eliminate(), true;
          }
       }
       if (is<abs>(lhs()) && as<abs>(lhs())->val == 0) // algebraic simplification
