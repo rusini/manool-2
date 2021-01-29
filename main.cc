@@ -4,52 +4,80 @@
 
 
 int main() {
-# if 0
    namespace opt = rsn::opt;
 
-   auto pr_int = opt::proc::make({123456, 1001});
-   {  auto &&pr = pr_int;
-      auto bb1 = opt::bblock::make(pr), bb2 = opt::bblock::make(pr), bb3 = opt::bblock::make(pr);
-      auto r_lhs_t = opt::vreg::make(pr), r_lhs_v = opt::vreg::make(pr);
-      auto r_rhs_t = opt::vreg::make(pr), r_rhs_v = opt::vreg::make(pr);
-      auto r_cond  = opt::vreg::make(pr);
+   enum { op_add, op_mul, op_cmpeq };
 
-      opt::insn_entry::make(bb1, {r_lhs_t, r_lhs_v, r_rhs_t, r_rhs_v});
-      opt::insn_binop::make_cmpeq(bb1, r_cond, r_rhs_t, pr_int);
-      opt::insn_cond_jmp::make(bb1, r_cond, bb2, bb3);
+   auto p_oops = opt::rel_base::make({0, 999llu << 48}); // signaling exceptions
 
-      opt::insn_binop::make_add(bb2, r_lhs_v, r_lhs_v, r_rhs_v);
-      opt::insn_ret::make(bb2, {r_lhs_t, r_lhs_v});
+   auto p_int = opt::proc::make({0, 123llu << 48}); // Integer datatype
+   {  auto p = p_int;
+      auto b0 = opt::bblock::make(p), b1 = opt::bblock::make(p), b2 = opt::bblock::make(p),
+         b_add_op = opt::bblock::make(p), b_add_ret = opt::bblock::make(p),
+         b_mul_op = opt::bblock::make(p), b_mul_ret = opt::bblock::make(p),
+         b_cmpeq_op = opt::bblock::make(p), b_cmpeq_ret = opt::bblock::make(p),
+         b_cmpeq_ret1 = opt::bblock::make(p), b_cmpeq_ret0 = opt::bblock::make(p),
+         b_oops = opt::bblock::make(p);
+      auto r_op = opt::reg::make(), r_lhs_v = opt::reg::make(), r_rhs_t = opt::reg::make(), r_rhs_v = opt::reg::make();
 
-      opt::insn_undefined::make(bb3);
+      opt::insn_entry::make(b0, {r_op, r_lhs_v, r_rhs_t, r_rhs_v});
+
+      opt::insn_br::make_beq(b0, r_op, op_add, b_add_op, b1);
+      opt::insn_br::make_beq(b1, r_op, op_mul, b_mul_op, b2);
+      opt::insn_br::make_beq(b2, r_op, op_cmpeq, b_cmpeq_op, b_oops);
+
+      opt::insn_br::make_beq(b_add_op, r_rhs_t, p_int, b_add_ret, b_oops);
+      opt::insn_binop::make_add(b_add_ret, l_lhs_v, l_lhs_v, r_rhs_v);
+      opt::insn_ret::make(b_add_ret, {p_int, r_lhs_v});
+
+      opt::insn_br::make_beq(b_mul_op, r_rhs_t, p_int, b_mul_ret, b_oops);
+      opt::insn_binop::make_mul(b_mul_ret, l_lhs_v, l_lhs_v, r_rhs_v);
+      opt::insn_ret::make(b_mul_ret, {p_int, r_lhs_v});
+
+      opt::insn_br::make_beq(b_cmpeq_op, r_rhs_t, p_int, b_mul_ret, b_oops);
+      opt::insn_br::make_beq(b_cmpeq_ret, l_lhs_v, r_rhs_v, b_cmpeq_ret1, b_cmpeq_ret0);
+      opt::insn_ret::make(b_cmpeq_ret1, {p_bool, 1});
+      opt::insn_ret::make(b_cmpeq_ret0, {p_bool, 0});
+
+      opt::insn_call::make(b_oops, {}, p_oops, {});
+      opt::insn_oops::make(b_oops);
+
+      p->dump();
    }
 
-   auto pr_fact = opt::proc::make({123456, 1002}); // iterative version of Factorial
-   {  auto &&pr = pr_fact;
-      auto bb1 = opt::bblock::make(pr), bb2 = opt::bblock::make(pr), bb3 = opt::bblock::make(pr), bb4 = opt::bblock::make(pr), bb5 = opt::bblock::make(pr);
-      auto r_arg_t = opt::vreg::make(pr), r_arg_v = opt::vreg::make(pr);
-      auto r_res_t = opt::vreg::make(pr), r_res_v = opt::vreg::make(pr);
-      auto r_cond  = opt::vreg::make(pr);
+   auto p_bool = opt::rel_base::make({0, 456llu << 48}); // Boolean datatype
 
-      opt::insn_entry::make(bb1, {r_arg_t, r_arg_v});
-      opt::insn_binop::make_cmpeq(bb1, r_cond, r_arg_t, pr_int);
-      opt::insn_cond_jmp::make(bb1, r_cond, bb2, bb5);
+   auto p_fact = opt::proc::make({0, 1 << 48}); // iterative version of Factorial
+   {  auto p = p_fact;
+      auto b0 = opt::bblock::make(p), b1 = opt::bblock::make(p), b2 = opt::bblock::make(p), b3 = opt::bblock::make(p), b4 = opt::bblock::make(p),
+         b_oops = opt::bblock::make(p);
+      auto r_n_t = opt::reg::make(), r_n_v = opt::reg::make();
+      auto r_res_t = opt::reg::make(), r_res_v = opt::reg::make();
+      auto r_tmp_t = opt::reg::make(), r_tmp_v = opt::reg::make();
 
-      opt::insn_binop::make_cmpne(bb2, r_cond, r_arg_v, opt::abs_imm::make(0));
-      opt::insn_cond_jmp::make(bb2, r_cond, bb3, bb4);
+      opt::insn_entry::make(b0, {r_n_t, r_n_v});
+      opt::insn_br::make_beq(b0, r_n_t, p_int, b1, b_oops);
 
-      opt::insn_binop::make_umul(bb3, r_res_v, r_res_v, r_arg_v);
-      opt::insn_binop::make_sub(bb3, r_arg_v, r_arg_v, opt::abs_imm::make(1));
-      opt::insn_jmp::make(bb3, bb2);
+      opt::insn_mov::make(b1, r_res_t, p_int);
+      opt::insn_mov::make(b1, r_res_v, 1);
+      opt::insn_jmp::make(b1, b2);
 
-      opt::insn_ret::make(bb4, {r_res_t, r_res_v});
+      opt::insn_call::make(b2, {r_tmp_t, r_tmp_v}, r_n_t, {opt::abs::make(1), r_n_t, r_n_v, p_int, 0});
+      opt::insn_br::make_beq(b2, r_tmp_t, p_bool, b3, b_oops);
 
-      opt::insn_undefined::make(bb5);
+      opt::insn_br::make_bne(b3, r_tmp_v, opt::abs::make(0), b4, b5);
+
+      opt::insn_call::make(b4, {r_res_t, r_res_v}, r_res_t, {opt::abs::make(2), r_res_t, r_res_v, r_n_t, r_n_v});
+      opt::insn_call::make(b4, {r_n_t, r_n_v}, r_n_t, {opt::abs::make(3), r_n_t, r_n_v, p_int, opt::abs::make(1)});
+      opt::insn_jmp::make(b4, b2);
+
+      opt::insn_ret::make(b5, {r_res_t, r_res_v});
+
+      opt::insn_call::make(b_oops, {}, p_oops, {});
+      opt::insn_oops::make(b_oops);
+
+      p->dump();
    }
 
-   pr_int->dump();
-   pr_fact->dump();
-# endif
-
-   return 0;
+   return {};
 }

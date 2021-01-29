@@ -52,10 +52,12 @@ namespace rsn::lib {
 
    template<typename> class smart_ptr;
 
-   class smart_rc: noncopyable<smart_rc> {
+   class smart_rc_mixin: noncopyable<smart_rc_mixin> {
    protected:
-      smart_rc() = default;
-      ~smart_rc() = default;
+      smart_rc_mixin() = default;
+      ~smart_rc_mixin() = default;
+   protected:
+      struct smart_tag {};
    private:
       long rc = 1;
       template<typename> friend class smart_ptr;
@@ -71,7 +73,9 @@ namespace rsn::lib {
       RSN_INLINE smart_ptr &operator=(smart_ptr &&rhs) noexcept { swap(rhs); return *this; }
       RSN_INLINE void swap(smart_ptr &rhs) noexcept { using std::swap; swap(rep, rhs.rep); }
    public: // miscellaneous operations
-      template<typename Rhs> RSN_INLINE RSN_NODISCARD static auto make(Rhs rhs) noexcept { static_assert(std::is_same_v<Rhs, Obj *>); return smart_ptr(rhs); }
+      template<typename ...Args> RSN_INLINE RSN_NODISCARD static auto make(Args &&...args)
+         { return smart_ptr(new Obj(smart_rc_mixin::smart_tag{}, std::forward<Args>(args)...)); }
+   public:
       RSN_INLINE smart_ptr(Obj *rhs) noexcept: rep(rhs) { retain(); }
       template<typename Rhs> RSN_INLINE smart_ptr(const smart_ptr<Rhs> &rhs) noexcept: rep(rhs) { retain(); }
       template<typename Rhs> RSN_INLINE smart_ptr(smart_ptr<Rhs> &&rhs) noexcept: rep(rhs) { rhs.rep = {}; }
@@ -85,23 +89,23 @@ namespace rsn::lib {
       template<typename> friend class smart_ptr;
    private: // implementation helpers
       RSN_INLINE explicit smart_ptr(Obj *rep, int) noexcept: rep(rep) {}
-      RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++static_cast<smart_rc *>(rep)->rc; }
-      RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--static_cast<smart_rc *>(rep)->rc)) delete rep; }
-      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>> as_smart(const smart_ptr<Src> &) noexcept;
-      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
+      RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++static_cast<smart_rc_mixin *>(rep)->rc; }
+      RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--static_cast<smart_rc_mixin *>(rep)->rc)) delete rep; }
+      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>> as_smart(const smart_ptr<Src> &) noexcept;
+      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
    };
    // Non-member functions
    template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept
       { lhs.swap(rhs); }
    // Downcast utilities
-   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, bool> is(const smart_ptr<Src> &src) noexcept
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, bool> is(const smart_ptr<Src> &src) noexcept
       { return is<Dest>(&*src); }
-   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, Dest *> as(const smart_ptr<Src> &src) noexcept
+   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, Dest *> as(const smart_ptr<Src> &src) noexcept
       { return as<Dest>(&*src); }
-   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>>
-      as_smart(const smart_ptr<Src> &src) noexcept { return smart_ptr{as<Dest>(src)}; }
-   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc, Src>, smart_ptr<Dest>>
-      as_smart(smart_ptr<Src> &&src) noexcept { auto res = smart_ptr{as<Dest>(src)}; src.rep = {}; return res; }
+   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>>
+      as_smart(const smart_ptr<Src> &src) noexcept { return smart_ptr{as<Dest>(src), 0}; }
+   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>>
+      as_smart(smart_ptr<Src> &&src) noexcept { auto res = smart_ptr{as<Dest>(src), 0}; src.rep = {}; return res; }
 
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
