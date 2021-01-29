@@ -88,8 +88,10 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
       friend class imm; // descendant
       friend class reg; // ditto
-   public: // fast (and trivial) RTTI
-      template<typename Dest> bool type_check() const noexcept = delete; // should be used only through the is<T>(P) interface
+   private: // fast (and trivial) RTTI
+      template<typename> bool type_check() const noexcept = delete;
+      template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept;
+      template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, bool> lib::is(const lib::smart_ptr<Src> &) noexcept;
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
@@ -109,6 +111,7 @@ namespace rsn::opt {
       friend class rel_disp; // ditto
    };
    RSN_INLINE inline imm::~imm() = default;
+   template<> RSN_INLINE inline bool operand::type_check<imm>() const noexcept { return kind >= _imm; }
 
    class abs final: public imm { // 64-bit absolute constant value
    public: // public data members
@@ -128,6 +131,7 @@ namespace rsn::opt {
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
+   template<> RSN_INLINE inline bool operand::type_check<abs>() const noexcept { return kind == _abs; }
 
    class rel_base: public imm { // base relocatable (w/o addendum)
    public: // public data members
@@ -150,6 +154,7 @@ namespace rsn::opt {
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
+   template<> RSN_INLINE inline bool operand::type_check<rel_base>() const noexcept { return kind >= _rel_base; }
 
    class proc final: public rel_base, // procedure, AKA function, subroutine, etc. (translation unit)
       public lib::collection_mixin<proc, bblock> {
@@ -174,6 +179,7 @@ namespace rsn::opt {
       # undef RSN_OPT_TEMP_PROC
       } temp;
    };
+   template<> RSN_INLINE inline bool operand::type_check<proc>() const noexcept { return kind == _proc; }
 
    class data final: public rel_base { // static initialized-data block
    public: // public data members
@@ -197,6 +203,7 @@ namespace rsn::opt {
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
+   template<> RSN_INLINE inline bool operand::type_check<data>() const noexcept { return kind == _data; }
 
    class rel_disp final: public imm { // displaced relocatable (w/ nonzero addendum)
    public: // public data members
@@ -217,6 +224,7 @@ namespace rsn::opt {
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
+   template<> RSN_INLINE inline bool operand::type_check<rel_disp>() const noexcept { return kind == _rel_disp; }
 
    class reg final: public operand { // generalized (virtual or real) register
    public: // construction/destruction
@@ -242,14 +250,7 @@ namespace rsn::opt {
       # undef RSN_OPT_TEMP_REG
       } temp;
    };
-
-   template<> RSN_INLINE inline bool operand::type_check<imm>() const noexcept      { return kind >= _imm; }
-   template<> RSN_INLINE inline bool operand::type_check<abs>() const noexcept      { return kind == _abs; }
-   template<> RSN_INLINE inline bool operand::type_check<rel_base>() const noexcept { return kind >= _rel_base; }
-   template<> RSN_INLINE inline bool operand::type_check<proc>() const noexcept     { return kind == _proc; }
-   template<> RSN_INLINE inline bool operand::type_check<data>() const noexcept     { return kind == _data; }
-   template<> RSN_INLINE inline bool operand::type_check<rel_disp>() const noexcept { return kind == _rel_disp; }
-   template<> RSN_INLINE inline bool operand::type_check<reg>() const noexcept      { return kind == _reg; }
+   template<> RSN_INLINE inline bool operand::type_check<reg>() const noexcept { return kind == _reg; }
 
    // Basic Blocks and Instructions ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
