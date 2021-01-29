@@ -68,17 +68,17 @@ namespace rsn::opt {
    // Data Operands ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    /* Inheritance Hierarchy
-      operand         -- data operand of "infinite" width (abs, rel, reg, etc.)... excluding jump targets
-       | imm          -- absolute or relocatable immediate constant
-       |  | abs       -- 64-bit absolute constant value
-       |  + rel_base  -- base relocatable (w/o addendum); extern (externally defined) when not subclassed
-       |  |  + proc   -- procedure, AKA function, subroutine, etc. (translation unit)
-       |  |  + data   -- static initialized-data block
-       |  + rel_disp  -- displaced relocatable (w/ nonzero addendum)
-       + reg          -- generalized (virtual or real) register
+      operand         -- data operand of "infinite" width (abs, rel, reg)... excluding jump targets
+       +-imm          -- absolute or relocatable immediate constant value
+       |  +-abs       -- 64-bit absolute constant value
+       |  +-rel_base  -- base relocatable (w/o addendum); externally defined ("extern") when not subclassed
+       |  |  +-proc   -- procedure, AKA function or subroutine (translation unit)
+       |  |  +-data   -- static data block
+       |  +-rel_disp  -- displaced relocatable (w/ nonzero addendum)
+       +-reg          -- generalized (virtual or real) register
    */
 
-   class operand: protected aux::node, // data operand of "infinite" width (abs, rel, vreg, etc.)... excluding jump targets
+   class operand: protected aux::node, // data operand of "infinite" width (abs, rel, reg)... excluding jump targets
       protected lib::smart_rc_mixin {
    protected:
       const enum: unsigned char { _imm = 1, _abs = 1, _rel_base = 3, _proc, _data, _rel_disp = 2, _reg = 0 } kind;
@@ -102,7 +102,7 @@ namespace rsn::opt {
    };
    RSN_INLINE inline operand::~operand() = default;
 
-   class imm: public operand { // absolute or relocatable immediate constant
+   class imm: public operand { // absolute or relocatable immediate constant value
       RSN_INLINE explicit imm(decltype(kind) kind) noexcept: operand{kind} {}
       ~imm() override = 0;
       template<typename> friend class lib::smart_ptr;
@@ -133,7 +133,7 @@ namespace rsn::opt {
    };
    template<> RSN_INLINE inline bool operand::type_check<abs>() const noexcept { return kind == _abs; }
 
-   class rel_base: public imm { // base relocatable (w/o addendum)
+   class rel_base: public imm { // base relocatable (w/o addendum); externally defined ("extern") when not subclassed
    public: // public data members
       const std::pair<unsigned long long, unsigned long long> id; // link-time symbol (content hash)
    public: // construction/destruction
@@ -156,7 +156,7 @@ namespace rsn::opt {
    };
    template<> RSN_INLINE inline bool operand::type_check<rel_base>() const noexcept { return kind >= _rel_base; }
 
-   class proc final: public rel_base, // procedure, AKA function, subroutine, etc. (translation unit)
+   class proc final: public rel_base, // procedure, AKA function or subroutine (translation unit)
       public lib::collection_mixin<proc, bblock> {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
@@ -181,7 +181,7 @@ namespace rsn::opt {
    };
    template<> RSN_INLINE inline bool operand::type_check<proc>() const noexcept { return kind == _proc; }
 
-   class data final: public rel_base { // static initialized-data block
+   class data final: public rel_base { // static data block
    public: // public data members
       const std::vector<lib::smart_ptr<imm>> values;
    public: // construction/destruction
