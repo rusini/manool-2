@@ -116,7 +116,8 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(val) val) { return lib::smart_ptr<abs>::make(std::move(val)); }
    private: // implementation helpers
-      RSN_INLINE explicit abs(smart_tag, decltype(val) &&val) noexcept: imm{_abs}, val(std::move(val)) {}
+      RSN_INLINE explicit abs(decltype(val) &&val) noexcept: imm{_abs}, val(std::move(val)) {}
+      RSN_INLINE explicit abs(smart_tag, decltype(val) &&val) noexcept: abs{std::move(val)} {}
       ~abs() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -134,7 +135,8 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<rel_base>::make(std::move(id)); }
    private: // implementation helpers
-      RSN_INLINE explicit rel_base(smart_tag, decltype(id) &&id, decltype(kind) kind = _rel_base) noexcept: imm{kind}, id(std::move(id)) {}
+      RSN_INLINE explicit rel_base(decltype(kind) kind, decltype(id) &&id) noexcept: imm{kind}, id(std::move(id)) {}
+      RSN_INLINE explicit rel_base(smart_tag, decltype(id) &&id) noexcept: rel_base{_rel_base, std::move(id)} {}
       ~rel_base() override = default;
       template<typename> friend class lib::smart_ptr;
       friend class proc; // descendant
@@ -154,7 +156,8 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
    private: // implementation helpers
-      RSN_INLINE explicit proc(smart_tag, decltype(id) &&id) noexcept: rel_base{smart_tag{}, std::move(id), _proc} {}
+      RSN_INLINE explicit proc(decltype(id) &&id) noexcept: rel_base{_proc, std::move(id)} {}
+      RSN_INLINE explicit proc(smart_tag, decltype(id) &&id) noexcept: proc{std::move(id)} {}
       ~proc() override;
       template<typename> friend class lib::smart_ptr;
    # ifdef RSN_USE_DEBUG
@@ -178,7 +181,8 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id, decltype(values) values) { return lib::smart_ptr<data>::make(std::move(id), std::move(values)); }
    private: // implementation helpers
-      RSN_INLINE explicit data(smart_tag, decltype(id) &&id, decltype(values) &&values) noexcept: rel_base{smart_tag{}, std::move(id), _data}, values(std::move(values)) {}
+      RSN_INLINE explicit data(decltype(id) &&id, decltype(values) &&values) noexcept: rel_base{_data, std::move(id)}, values(std::move(values)) {}
+      RSN_INLINE explicit data(smart_tag, decltype(id) &&id, decltype(values) &&values) noexcept: data{std::move(id), std::move(values)} {}
       ~data() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -201,7 +205,8 @@ namespace rsn::opt {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(base) base, decltype(add) add) { return lib::smart_ptr<rel_disp>::make(std::move(base), std::move(add)); }
    private: // implementation helpers
-      RSN_INLINE explicit rel_disp(smart_tag, decltype(base) base, decltype(add) add) noexcept: imm{_rel_disp}, base(std::move(base)), add(std::move(add)) {}
+      RSN_INLINE explicit rel_disp(decltype(base) base, decltype(add) add) noexcept: imm{_rel_disp}, base(std::move(base)), add(std::move(add)) {}
+      RSN_INLINE explicit rel_disp(smart_tag, decltype(base) base, decltype(add) add) noexcept: rel_disp{std::move(base), std::move(add)} {}
       ~rel_disp() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
@@ -215,9 +220,11 @@ namespace rsn::opt {
 
    class reg final: public operand { // generalized (virtual or real) register
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(const char *name = {}) { return lib::smart_ptr<reg>::make(name); }
+      RSN_INLINE RSN_NODISCARD static auto make(const char *name = {})
+         { return lib::smart_ptr<reg>::make(name); }
    private: // implementation helpers
-      RSN_INLINE explicit reg(smart_tag, const char *name = {}) noexcept: operand{_reg} RSN_IF_USE_DEBUG(, name(name)) {}
+      RSN_INLINE explicit reg(smart_tag, const char *name = {}) noexcept
+         : operand{_reg} RSN_IF_USING_DEBUG(, name(name)) {}
       ~reg() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG

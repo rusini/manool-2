@@ -89,9 +89,9 @@
 # endif
 
 # if RSN_USE_DEBUG
-   # define RSN_IF_USE_DEBUG(...) __VA_ARGS__
+   # define RSN_IF_USING_DEBUG(...) __VA_ARGS__
 # else
-   # define RSN_IF_USE_DEBUG(...)
+   # define RSN_IF_USING_DEBUG(...)
 # endif
 
 # endif // # ifndef RSN_INCLUDED_RUSINI0
