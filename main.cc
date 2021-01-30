@@ -61,7 +61,7 @@ int main() {
       opt::insn_mov::make(b1, r_res_v, opt::abs::make(1));
       opt::insn_jmp::make(b1, b2);
 
-      opt::insn_call::make(b2, {r_tmp_t, r_tmp_v}, r_n_t, {opt::abs::make(1), r_n_t, r_n_v, p_int, 0});
+      opt::insn_call::make(b2, {r_tmp_t, r_tmp_v}, r_n_t, {opt::abs::make(1), r_n_t, r_n_v, p_int});
       opt::insn_br::make_beq(b2, r_tmp_t, p_bool, b3, b_oops);
 
       opt::insn_br::make_bne(b3, r_tmp_v, opt::abs::make(0), b4, b5);
