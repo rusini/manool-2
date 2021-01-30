@@ -20,7 +20,7 @@
 using namespace rsn::opt;
 
 void proc::dump() const noexcept {
-   std::fprintf(stderr, "P%u = proc $0x%08X[0x%016llX%016llX] as\n", sn, (unsigned)(id.second >> 32), id.second, id.first);
+   std::fprintf(stderr, "P%u = proc $0x%08X[0x%016llX%016llX] as\n", sn, (unsigned)id.first, id.second, id.first);
    {  std::unordered_set<bblock *> bblocks;
       for (auto bb: all(this)) for (auto in: all(bb)) {
          for (auto target: in->targets()) if (target->owner() != this) bblocks.insert(target);

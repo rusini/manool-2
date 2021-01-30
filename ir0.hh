@@ -148,9 +148,9 @@ namespace rsn::opt {
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override
-         { std::fprintf(stderr, "X%u = extern $0x%08X...[$0x%016llX%016llX]\n\n", sn, (unsigned)(id.second >> 32), id.second, id.first); }
+         { std::fprintf(stderr, "X%u = extern $0x%08X[$0x%016llX%016llX]\n\n", sn, (unsigned)id.first, id.second, id.first); }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "X%u$0x%08X[...]", sn, (unsigned)(id.second >> 32)); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "X%u$0x%08X[...]", sn, (unsigned)id.first); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
@@ -169,7 +169,7 @@ namespace rsn::opt {
    public: // debugging
       void dump() const noexcept override;
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%08X[...]", sn, (unsigned)(id.second >> 32)); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%08X[...]", sn, (unsigned)id.first); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    public: // extras
@@ -195,11 +195,11 @@ namespace rsn::opt {
    public: // debugging
       void dump() const noexcept override {
          std::fprintf(stderr, "D%u = data $0x%016llX%016llX as\n", sn, id.second, id.first);
-         for (auto &&it: values) log << "  " << it << '\n';
+         for (auto &&it: values) log << "    " << it << '\n';
          std::fprintf(stderr, "end data D%u\n\n", sn);
       }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "D%u$0x%08X...", sn, (unsigned)(id.second >> 32)); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "D%u$0x%08X[...]", sn, (unsigned)id.first); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
