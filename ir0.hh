@@ -172,11 +172,11 @@ namespace rsn::opt {
       void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%08X...", sn, (unsigned)(id.second >> 32)); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
-   public: // embedded temporary data
+   public: // extras
       struct {
-      # define RSN_OPT_TEMP_PROC
-         # include "opt-temp.tcc"
-      # undef RSN_OPT_TEMP_PROC
+      # define RSN_OPT_EXTRA_PROC
+         # include "ir0-extra.tcc"
+      # undef RSN_OPT_EXTRA_PROC
       } temp;
    };
    template<> RSN_INLINE inline bool operand::type_check<proc>() const noexcept { return kind == _proc; }
@@ -243,11 +243,11 @@ namespace rsn::opt {
       void dump_ref() const noexcept override { if (!name) std::fprintf(stderr, "R%u", sn); else std::fprintf(stderr, "R%s", name); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
-   public: // embedded temporary data
+   public: // extras
       struct {
-      # define RSN_OPT_TEMP_REG
-         # include "opt-temp.tcc"
-      # undef RSN_OPT_TEMP_REG
+      # define RSN_OPT_EXTRA_REG
+         # include "ir0-extra.tcc"
+      # undef RSN_OPT_EXTRA_REG
       } temp;
    };
    template<> RSN_INLINE inline bool operand::type_check<reg>() const noexcept { return kind == _reg; }
@@ -272,11 +272,11 @@ namespace rsn::opt {
       void dump_ref() const noexcept { std::fprintf(stderr, "L%u", sn); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
-   public: // embedded temporary data
+   public: // extras
       struct {
-      # define RSN_OPT_TEMP_BBLOCK
-         # include "opt-temp.tcc"
-      # undef RSN_OPT_TEMP_BBLOCK
+      # define RSN_OPT_EXTRA_BBLOCK
+         # include "ir0-extra.tcc"
+      # undef RSN_OPT_EXTRA_BBLOCK
       } temp;
    };
    RSN_NOINLINE inline proc::~proc() = default;
@@ -292,6 +292,9 @@ namespace rsn::opt {
    public: // copy-construction
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
+   private: // fast (and trivial) RTTI
+      template<typename Dest> RSN_INLINE bool type_check() const noexcept { return dynamic_cast<const Dest *>(this); }
+      template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept;
    public: // querying contents
       RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<reg> *>                { return _outputs; }
       RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<reg> *>    { return _outputs; }
@@ -309,11 +312,11 @@ namespace rsn::opt {
    public: // debugging
       virtual void dump() const noexcept = 0;
    # endif
-   public: // embedded temporary data
+   public: // extras
       struct {
-      # define RSN_OPT_TEMP_INSN
-         # include "opt-temp.tcc"
-      # undef RSN_OPT_TEMP_INSN
+      # define RSN_OPT_EXTRA_INSN
+         # include "ir0-extra.tcc"
+      # undef RSN_OPT_EXTRA_INSN
       } temp;
    };
    RSN_NOINLINE inline bblock::~bblock() = default;

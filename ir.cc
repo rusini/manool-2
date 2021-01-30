@@ -372,8 +372,6 @@ namespace rsn::opt { static bool simplify(insn_call *); }
 bool rsn::opt::insn_call::simplify() { return opt::simplify(this); }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
-   return {};
-# if 0
    const auto owner = [insn]()RSN_INLINE{ return insn->owner(); };
    const auto next = [insn]()RSN_INLINE{ return insn->next(); };
    const auto prev = [insn]()RSN_INLINE{ return insn->prev(); };
@@ -434,5 +432,4 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
    }
 
    eliminate(); return true;
-# endif
 }

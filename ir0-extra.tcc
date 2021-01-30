@@ -1,16 +1,16 @@
 // opt-temp.tcc
 
-# ifdef RSN_OPT_TEMP_PROC
+# ifdef RSN_OPT_EXTRA_PROC
 # endif
 
-# ifdef RSN_OPT_TEMP_REG
+# ifdef RSN_OPT_EXTRA_REG
 # endif
 
-# ifdef RSN_OPT_TEMP_BBLOCK
+# ifdef RSN_OPT_EXTRA_BBLOCK
    bblock *bb;
    std::vector<bblock *> preds;
 # endif
 
-# ifdef RSN_OPT_TEMP_INSN
+# ifdef RSN_OPT_EXTRA_INSN
    bool visited{};
 # endif
