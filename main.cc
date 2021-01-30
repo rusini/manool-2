@@ -29,7 +29,7 @@ int main() {
 
       opt::insn_br::make_beq(b_add_op, r_rhs_t, p_int, b_add_ret, b_oops);
       opt::insn_binop::make_add(b_add_ret, r_lhs_v, r_lhs_v, r_rhs_v);
-      opt::insn_ret::make(b_add_ret, {p_int, r_lhs_v});
+      opt::insn_ret::make(b_add_ret, {opt::rel_disp::make(p_int, 16), r_lhs_v});
 
       opt::insn_br::make_beq(b_mul_op, r_rhs_t, p_int, b_mul_ret, b_oops);
       opt::insn_binop::make_umul(b_mul_ret, r_lhs_v, r_lhs_v, r_rhs_v);
@@ -46,7 +46,7 @@ int main() {
       p->dump();
    }
 
-   auto p_fact = opt::proc::make({0, 1 << 32}); // iterative version of Factorial
+   auto p_fact = opt::proc::make({0, 1llu << 32}); // iterative version of Factorial
    {  auto p = p_fact;
       auto b0 = opt::bblock::make(p), b1 = opt::bblock::make(p), b2 = opt::bblock::make(p), b3 = opt::bblock::make(p),
          b4 = opt::bblock::make(p), b5 = opt::bblock::make(p), b_oops = opt::bblock::make(p);
