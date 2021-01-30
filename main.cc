@@ -78,5 +78,7 @@ int main() {
       p->dump();
    }
 
+   opt::rel_disp::make(p_int, 16)->dump();
+
    return {};
 }

@@ -50,7 +50,8 @@ namespace rsn::opt {
       }
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { log << params() << (params().empty() ? "" : " := ") << "entry"; }
+      //void dump() const noexcept override { log << params() << (params().empty() ? "" : " := ") << "entry"; }
+      void dump() const noexcept override { log << "entry" << (params().empty() ? "" : " -> ") << params(); }
    # endif
    };
 
@@ -126,7 +127,8 @@ namespace rsn::opt {
       }
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { log << results() << (results().empty() ? "" : " := ") << "call " << dest() << " ( " << params() << " )"; }
+      //void dump() const noexcept override { log << results() << (results().empty() ? "" : " := ") << "call " << dest() << " ( " << params() << " )"; }
+      void dump() const noexcept override { log << "call " << dest() << " ( " << params() << " )" << (results().empty() ? "" : " -> ") << results(); }
    # endif
    };
 
@@ -162,7 +164,8 @@ namespace rsn::opt {
       }
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { log << dest() << " := mov " << src(); }
+      //void dump() const noexcept override { log << dest() << " := mov " << src(); }
+      void dump() const noexcept override { log << "mov " << src() << " -> " << dest(); }
    # endif
    };
 
@@ -289,7 +292,8 @@ namespace rsn::opt {
       void dump() const noexcept override {
          static constexpr const char *mnemo[]
             {"add", "sub", "umul", "udiv", "urem", "smul", "sdiv", "srem", "and", "or", "xor", "shl", "ushr", "sshr"};
-         log << dest() << " := " << mnemo[op] << ' ' << lhs() << ", " << rhs();
+         //log << dest() << " := " << mnemo[op] << ' ' << lhs() << ", " << rhs();
+         log << mnemo[op] << ' ' << lhs() << ", " << rhs() << " -> "<< dest();
       }
    # endif // # if RSN_USE_DEBUG
    };
