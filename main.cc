@@ -8,9 +8,9 @@ int main() {
 
    enum { op_add, op_mul, op_cmpeq };
 
-   auto p_int  = opt::proc::make    ({0, 123llu << 48}); // Integer datatype
-   auto p_bool = opt::rel_base::make({0, 456llu << 48}); // Boolean datatype
-   auto p_oops = opt::rel_base::make({0, 999llu << 48}); // signaling exceptions
+   auto p_int  = opt::proc::make    ({0, 123llu << 32}); // Integer datatype
+   auto p_bool = opt::rel_base::make({0, 456llu << 32}); // Boolean datatype
+   auto p_oops = opt::rel_base::make({0, 999llu << 32}); // signaling exceptions
 
    {  auto p = p_int;
       auto b0 = opt::bblock::make(p), b1 = opt::bblock::make(p), b2 = opt::bblock::make(p),
@@ -46,7 +46,7 @@ int main() {
       p->dump();
    }
 
-   auto p_fact = opt::proc::make({0, 1 << 48}); // iterative version of Factorial
+   auto p_fact = opt::proc::make({0, 1 << 32}); // iterative version of Factorial
    {  auto p = p_fact;
       auto b0 = opt::bblock::make(p), b1 = opt::bblock::make(p), b2 = opt::bblock::make(p), b3 = opt::bblock::make(p),
          b4 = opt::bblock::make(p), b5 = opt::bblock::make(p), b_oops = opt::bblock::make(p);
