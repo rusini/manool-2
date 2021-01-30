@@ -269,7 +269,7 @@ namespace rsn::lib {
       ~collection_mixin() { while (rear()) obj_mixin(rear())->eliminate(); }
    public: // item access
       RSN_INLINE Obj *head() noexcept { return _head; }
-      RSN_INLINE const Obj *head() const noexcept { _head; }
+      RSN_INLINE const Obj *head() const noexcept { return _head; }
       RSN_INLINE Obj *rear() noexcept { return _rear; }
       RSN_INLINE const Obj *rear() const noexcept { return _rear; }
    private: // internal representation
