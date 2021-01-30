@@ -68,28 +68,28 @@ namespace rsn::opt {
    // Data Operands ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    /* Inheritance Hierarchy
-      operand         -- data operand of "infinite" width (abs, rel, reg)... excluding jump targets
-       +-imm          -- absolute or relocatable immediate constant value
-       |  +-abs       -- 64-bit absolute constant value
+      operand         -- data operand (abs, rel, vreg)... excluding jump targets
+       +-imm          -- 64-bit (abs or rel) immediate constant value
+       |  +-abs       -- absolute constant value
        |  +-rel_base  -- base relocatable (w/o addendum); externally defined ("extern") when not subclassed
-       |  |  +-proc   -- procedure, AKA function or subroutine (translation unit)
-       |  |  +-data   -- static data block
+       |  |  +-proc   -- (address of) procedure, AKA function or subroutine (translation unit)
+       |  |  +-data   -- address of static data block
        |  +-rel_disp  -- displaced relocatable (w/ nonzero addendum)
-       +-reg          -- generalized (virtual or real) register
+       +-vreg         -- virtual register of "infinite" width
    */
 
-   class operand: protected aux::node, // data operand of "infinite" width (abs, rel, reg)... excluding jump targets
+   class operand: protected aux::node, // data operand (abs, rel, vreg)... excluding jump targets
       protected lib::smart_rc_mixin {
+      template<typename> friend class lib::smart_ptr;
    protected:
       const enum: unsigned char { _imm = 1, _abs = 1, _rel_base = 3, _proc, _data, _rel_disp = 2, _reg = 0 } kind;
-   private:
+   private: // implementation helpers
       RSN_INLINE explicit operand(decltype(kind) kind) noexcept: kind(kind) {}
       virtual ~operand() = 0;
-      template<typename> friend class lib::smart_ptr;
-      friend class imm; // descendant
-      friend class reg; // ditto
-   private: // fast (and trivial) RTTI
-      template<typename> bool type_check() const noexcept = delete;
+      friend class imm;  // descendant
+      friend class vreg; // ditto
+   private:
+      template<typename> bool type_check() const noexcept = delete; // fast (and trivial) RTTI
       template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept;
       template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, bool> lib::is(const lib::smart_ptr<Src> &) noexcept;
    # if RSN_USE_DEBUG
@@ -102,7 +102,7 @@ namespace rsn::opt {
    };
    RSN_INLINE inline operand::~operand() = default;
 
-   class imm: public operand { // absolute or relocatable immediate constant value
+   class imm: public operand { // 64-bit (abs or rel) immediate constant value
       RSN_INLINE explicit imm(decltype(kind) kind) noexcept: operand{kind} {}
       ~imm() override = 0;
       template<typename> friend class lib::smart_ptr;
@@ -113,7 +113,7 @@ namespace rsn::opt {
    RSN_INLINE inline imm::~imm() = default;
    template<> RSN_INLINE inline bool operand::type_check<imm>() const noexcept { return kind >= _imm; }
 
-   class abs final: public imm { // 64-bit absolute constant value
+   class abs final: public imm { // absolute constant value
    public: // public data members
       const unsigned long long val;
    public: // construction/destruction
@@ -156,7 +156,7 @@ namespace rsn::opt {
    };
    template<> RSN_INLINE inline bool operand::type_check<rel_base>() const noexcept { return kind >= _rel_base; }
 
-   class proc final: public rel_base, // procedure, AKA function or subroutine (translation unit)
+   class proc final: public rel_base, // (address of) procedure, AKA function or subroutine (translation unit)
       public lib::collection_mixin<proc, bblock> {
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make(decltype(id) id) { return lib::smart_ptr<proc>::make(std::move(id)); }
@@ -181,7 +181,7 @@ namespace rsn::opt {
    };
    template<> RSN_INLINE inline bool operand::type_check<proc>() const noexcept { return kind == _proc; }
 
-   class data final: public rel_base { // static data block
+   class data final: public rel_base { // address of static data block
    public: // public data members
       const std::vector<lib::smart_ptr<imm>> values;
    public: // construction/destruction
@@ -194,7 +194,7 @@ namespace rsn::opt {
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override {
-         std::fprintf(stderr, "D%u = data $0x%016llX%016llX as\n", sn, id.second, id.first);
+         std::fprintf(stderr, "D%u = data D%u$0x%08X[...] as\n", sn, (unsigned)id.first, id.second, id.first);
          for (auto &&it: values) log << "    " << it << '\n';
          std::fprintf(stderr, "end data D%u\n\n", sn);
       }
@@ -226,31 +226,29 @@ namespace rsn::opt {
    };
    template<> RSN_INLINE inline bool operand::type_check<rel_disp>() const noexcept { return kind == _rel_disp; }
 
-   class reg final: public operand { // generalized (virtual or real) register
+   class vreg final: public operand { // virtual register of "infinite" width
    public: // construction/destruction
-      RSN_INLINE RSN_NODISCARD static auto make(const char *name = {})
-         { return lib::smart_ptr<reg>::make(name); }
+      RSN_INLINE RSN_NODISCARD static auto make() { return lib::smart_ptr<vreg>::make(); }
    private: // implementation helpers
-      RSN_INLINE explicit reg(smart_tag, const char *name = {}) noexcept
-         : operand{_reg} RSN_IF_USING_DEBUG(, name(name)) {}
-      ~reg() override = default;
+      RSN_INLINE explicit vreg() noexcept: operand{_reg} {}
+      RSN_INLINE explicit vreg(smart_tag) noexcept: vreg{} {}
+      ~vreg() override = default;
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { if (!name) std::fprintf(stderr, "R%u = reg\n\n", sn); else std::fprintf(stderr, "R%s = reg\n\n", name); }
+      void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg\n\n", sn); }
    private:
-      const char *const name;
-      void dump_ref() const noexcept override { if (!name) std::fprintf(stderr, "R%u", sn); else std::fprintf(stderr, "R%s", name); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "R%u", sn); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    public: // extras
       struct {
-      # define RSN_OPT_EXTRA_REG
+      # define RSN_OPT_EXTRA_VREG
          # include "ir0-extra.tcc"
-      # undef RSN_OPT_EXTRA_REG
+      # undef RSN_OPT_EXTRA_VREG
       } temp;
    };
-   template<> RSN_INLINE inline bool operand::type_check<reg>() const noexcept { return kind == _reg; }
+   template<> RSN_INLINE inline bool operand::type_check<vreg>() const noexcept { return kind == _reg; }
 
    // Basic Blocks and Instructions ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -296,18 +294,18 @@ namespace rsn::opt {
       template<typename Dest> RSN_INLINE bool type_check() const noexcept { return dynamic_cast<const Dest *>(this); }
       template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept;
    public: // querying contents
-      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<reg> *>                { return _outputs; }
-      RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<reg> *>    { return _outputs; }
       RSN_INLINE auto inputs() noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
       RSN_INLINE auto inputs() const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
+      RSN_INLINE auto outputs() noexcept->lib::range_ref<lib::smart_ptr<vreg> *>               { return _outputs; }
+      RSN_INLINE auto outputs() const noexcept->lib::range_ref<const lib::smart_ptr<vreg> *>   { return _outputs; }
       RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                            { return _targets; }
       RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                { return _targets; }
    public: // miscellaneous
-      RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification, and canonicalization
+      RSN_INLINE virtual bool simplify() { return {}; } // constant folding, algebraic simplification, and canonicalization
    protected: // internal representation
-      lib::range_ref<lib::smart_ptr<reg> *> _outputs{nullptr, nullptr};    // the compiler is to eliminate redundant stores in initialization
-      lib::range_ref<lib::smart_ptr<operand> *> _inputs{nullptr, nullptr}; // ditto
-      lib::range_ref<bblock **> _targets{nullptr, nullptr};                // ditto
+      lib::range_ref<lib::smart_ptr<operand> *> _inputs{nullptr, nullptr}; // the optimizer is to eliminate
+      lib::range_ref<lib::smart_ptr<vreg> *> _outputs{nullptr, nullptr};   //  redundant stores
+      lib::range_ref<bblock **> _targets{nullptr, nullptr};                //  in initialization
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;

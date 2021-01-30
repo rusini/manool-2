@@ -1,6 +1,6 @@
 // ir0.cc
 
-/*    Copyright (C) 2020 Alexey Protasov (AKA Alex or rusini)
+/*    Copyright (C) 2020, 2021 Alexey Protasov (AKA Alex or rusini)
 
    This is free software: you can redistribute it and/or modify it under the terms of the version 3 of the GNU General Public License
    as published by the Free Software Foundation (and only version 3).
@@ -8,7 +8,7 @@
    This software is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along with MANOOL.  If not, see <https://www.gnu.org/licenses/>.  */
+   You should have received a copy of the GNU General Public License along with this software.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 # if RSN_USE_DEBUG

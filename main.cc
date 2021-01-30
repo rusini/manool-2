@@ -19,7 +19,7 @@ int main() {
          b_cmpeq_op = opt::bblock::make(p), b_cmpeq_ret = opt::bblock::make(p),
          b_cmpeq_ret1 = opt::bblock::make(p), b_cmpeq_ret0 = opt::bblock::make(p),
          b_oops = opt::bblock::make(p);
-      auto r_op = opt::reg::make(), r_lhs_v = opt::reg::make(), r_rhs_t = opt::reg::make(), r_rhs_v = opt::reg::make();
+      auto r_op = opt::vreg::make(), r_lhs_v = opt::vreg::make(), r_rhs_t = opt::vreg::make(), r_rhs_v = opt::vreg::make();
 
       opt::insn_entry::make(b0, {r_op, r_lhs_v, r_rhs_t, r_rhs_v});
 
@@ -50,9 +50,9 @@ int main() {
    {  auto p = p_fact;
       auto b0 = opt::bblock::make(p), b1 = opt::bblock::make(p), b2 = opt::bblock::make(p), b3 = opt::bblock::make(p),
          b4 = opt::bblock::make(p), b5 = opt::bblock::make(p), b_oops = opt::bblock::make(p);
-      auto r_n_t = opt::reg::make(), r_n_v = opt::reg::make();
-      auto r_res_t = opt::reg::make(), r_res_v = opt::reg::make();
-      auto r_tmp_t = opt::reg::make(), r_tmp_v = opt::reg::make();
+      auto r_n_t = opt::vreg::make(), r_n_v = opt::vreg::make();
+      auto r_res_t = opt::vreg::make(), r_res_v = opt::vreg::make();
+      auto r_tmp_t = opt::vreg::make(), r_tmp_v = opt::vreg::make();
 
       opt::insn_entry::make(b0, {r_n_t, r_n_v});
       opt::insn_br::make_beq(b0, r_n_t, p_int, b1, b_oops);

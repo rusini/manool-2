@@ -3,7 +3,7 @@
 # ifdef RSN_OPT_EXTRA_PROC
 # endif
 
-# ifdef RSN_OPT_EXTRA_REG
+# ifdef RSN_OPT_EXTRA_VREG
 # endif
 
 # ifdef RSN_OPT_EXTRA_BBLOCK
