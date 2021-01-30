@@ -2,9 +2,16 @@
 
 # include "ir.hh"
 
+namespace opt = rsn::opt;
+
+bool transform_simplify(opt::proc *pr) {
+   bool changed{};
+   for (auto bb: all(pr)) for (auto in: all(bb))
+      changed |= in->simplify();
+   return changed;
+}
 
 int main() {
-   namespace opt = rsn::opt;
 
    enum { op_add, op_mul, op_cmpeq };
 
@@ -59,6 +66,7 @@ int main() {
 
       opt::insn_mov::make(b1, p_int, r_res_t);
       opt::insn_mov::make(b1, opt::abs::make(1), r_res_v);
+      opt::insn_binop::make_add(b1, r_res_v, opt::abs::make(0), r_res_v);
       opt::insn_jmp::make(b1, b2);
 
       opt::insn_call::make(b2, r_n_t, {opt::abs::make(1), r_n_t, r_n_v, p_int}, {r_tmp_t, r_tmp_v});
@@ -79,6 +87,11 @@ int main() {
    }
 
    opt::rel_disp::make(p_int, 16)->dump();
+
+   transform_simplify(p_int);
+   transform_simplify(p_fact);
+
+   p_fact->dump();
 
    return {};
 }
