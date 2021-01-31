@@ -31,11 +31,11 @@ bool rsn::opt::insn_binop::simplify() { return opt::simplify(this); }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_binop *insn) {
    bool changed{};
-   const auto lhs   = [insn]()->auto && RSN_INLINE{ return insn->lhs(); };
-   const auto rhs   = [insn]()->auto && RSN_INLINE{ return insn->rhs(); };
-   const auto dest  = [insn]()->auto && RSN_INLINE{ return insn->dest(); };
-   const auto owner = [insn]()->auto && RSN_INLINE{ return insn->owner(); };
-   const auto eliminate = [insn] RSN_INLINE{ insn->eliminate(); };
+   const auto eliminate = [insn]() noexcept RSN_INLINE -> void   { insn->eliminate(); };
+   const auto owner     = [insn]() noexcept RSN_INLINE -> auto   { return insn->owner(); };
+   const auto lhs       = [insn]() noexcept RSN_INLINE -> auto & { return insn->lhs(); };
+   const auto rhs       = [insn]() noexcept RSN_INLINE -> auto & { return insn->rhs(); };
+   const auto dest      = [insn]() noexcept RSN_INLINE -> auto & { return insn->dest(); };
    switch (insn->op) {
    default:
       RSN_UNREACHABLE();
@@ -375,36 +375,34 @@ namespace rsn::opt { static bool simplify(insn_call *); }
 bool rsn::opt::insn_call::simplify() { return opt::simplify(this); }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
-   return {};
-# if 0
-   const auto owner = [insn]()RSN_INLINE{ return insn->owner(); };
-   const auto next = [insn]()RSN_INLINE{ return insn->next(); };
-   const auto prev = [insn]()RSN_INLINE{ return insn->prev(); };
-   const auto eliminate = [insn]()RSN_INLINE{ insn->eliminate(); };
-   decltype(auto) results = insn->results();
-   decltype(auto) dest = insn->dest();
-   decltype(auto) params = insn->params();
+   const auto eliminate = [insn]() noexcept RSN_INLINE -> void   { insn->eliminate(); };
+   const auto owner     = [insn]() noexcept RSN_INLINE -> auto   { return insn->owner(); };
+   const auto next      = [insn]() noexcept RSN_INLINE -> auto   { return insn->next(); };
+   const auto prev      = [insn]() noexcept RSN_INLINE -> auto   { return insn->prev(); };
+   const auto dest      = [insn]() noexcept RSN_INLINE -> auto & { return insn->dest(); };
+   const auto params    = [insn]() noexcept RSN_INLINE -> auto   { return insn->params(); };
+   const auto results   = [insn]() noexcept RSN_INLINE -> auto   { return insn->results(); };
 
-   if (RSN_LIKELY(!is<proc>(dest))) return {};
-   auto pr = as<proc>(dest);
+   if (RSN_LIKELY(!is<proc>(dest()))) return {};
+   auto pr = as<proc>(dest());
 
    // integrate and expand the insn_entry
-   if (RSN_UNLIKELY(as<insn_entry>(pr->head()->head())->params().size() != params.size()))
+   if (RSN_UNLIKELY(as<insn_entry>(pr->head()->head())->params().size() != params().size()))
       insn_oops::make(insn);
    else
-   for (std::size_t sn = 0, size = params.size(); sn < size; ++sn)
-      insn_mov::make(insn, as<insn_entry>(pr->head()->head())->params()[sn], std::move(params[sn]));
+   for (std::size_t sn = 0, size = params().size(); sn < size; ++sn)
+      insn_mov::make(insn, std::move(params()[sn]), as<insn_entry>(pr->head()->head())->params()[sn]);
    // integrate the rest of entry BB
    for (auto in = pr->head()->head()->next(); in; in = in->next())
       in->clone(insn);
 
    if (RSN_LIKELY(!pr->head()->next())) {
       // expand the insn_ret
-      if (RSN_UNLIKELY(as<insn_ret>(prev())->results().size() != results.size()))
+      if (RSN_UNLIKELY(as<insn_ret>(prev())->results().size() != results().size()))
          insn_oops::make(prev());
       else
-      for (std::size_t sn = 0, size = results.size(); sn < size; ++sn)
-         insn_mov::make(prev(), std::move(results[sn]), std::move(as<insn_ret>(prev())->results()[sn]));
+      for (std::size_t sn = 0, size = results().size(); sn < size; ++sn)
+         insn_mov::make(prev(), std::move(as<insn_ret>(prev())->results()[sn]), std::move(results()[sn]));
       prev()->eliminate();
    } else {
       pr->head()->temp.bb = owner();
@@ -426,16 +424,15 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
          for (auto &target: bb->temp.bb->rear()->targets()) target = target->temp.bb;
       else {
          // expand an insn_ret
-         if (RSN_UNLIKELY(as<insn_ret>(bb->temp.bb->rear())->results().size() != results.size()))
+         if (RSN_UNLIKELY(as<insn_ret>(bb->temp.bb->rear())->results().size() != results().size()))
             insn_oops::make(bb->temp.bb->rear());
          else
-         for (std::size_t sn = 0, size = results.size(); sn < size; ++sn)
-            insn_mov::make(bb->temp.bb->rear(), results[sn], std::move(as<insn_ret>(bb->temp.bb->rear())->results()[sn]));
+         for (std::size_t sn = 0, size = results().size(); sn < size; ++sn)
+            insn_mov::make(bb->temp.bb->rear(), std::move(as<insn_ret>(bb->temp.bb->rear())->results()[sn]), results()[sn]);
          insn_jmp::make(bb->temp.bb->rear(), owner());
          bb->temp.bb->rear()->eliminate();
       }
    }
 
    eliminate(); return true;
-# endif
 }
