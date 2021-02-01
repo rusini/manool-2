@@ -35,40 +35,37 @@ namespace rsn::opt {
       static constexpr auto
       traverse = [](auto traverse, insn *in, vreg *vr) noexcept->operand *{
          for (auto _in = in->prev(); _in; _in = _in->prev()) {
-            if (RSN_UNLIKELY(_in->temp.visited)) return vr;
+            if (RSN_UNLIKELY(_in->temp.visited)) return {};
             _in->temp.visited = true;
             if (RSN_UNLIKELY(is<insn_mov>(_in)) && RSN_UNLIKELY(as<insn_mov>(_in)->dest() == vr) && is<imm>(as<insn_mov>(_in)->src()))
-               return std::puts("here"), as<insn_mov>(_in)->src();
+               return std::puts("here1"), as<insn_mov>(_in)->src();
             for (auto &output: _in->outputs()) if (RSN_UNLIKELY(output == vr))
                return vr;
          }
-         if (RSN_UNLIKELY(in->owner()->temp.preds.empty())) return vr;
-         const auto
-         _traverse = [traverse, in, &vr](insn *_in) noexcept{
+         const auto _traverse =
+         [traverse, in, &vr](insn *_in) noexcept{
             return RSN_UNLIKELY(is<insn_br>(_in)) && RSN_UNLIKELY(as<insn_br>(_in)->op == insn_br::_beq) && RSN_UNLIKELY(as<insn_br>(_in)->lhs() == vr) &&
                is<imm>(as<insn_br>(_in)->rhs()) && as<insn_br>(_in)->dest2() != in->owner() ? (operand *)as<insn_br>(_in)->rhs() : traverse(traverse, _in, vr);
          };
-         auto res = _traverse(range_ref(in->owner()->temp.preds).first()->rear());
-         if (RSN_UNLIKELY(is<abs>(res)))
-         for (auto bb: range_ref(in->owner()->temp.preds).drop_first()) {
+         operand *res{};
+         for (auto bb: in->owner()->temp.preds) {
             auto _res = _traverse(bb->rear());
-            if (!is<abs>(_res) || as<abs>(_res)->val != as<abs>(res)->val)
-               return vr;
-         } else
-         if (RSN_UNLIKELY(is<proc>(res) || is<data>(res)))
-         for (auto bb: range_ref(in->owner()->temp.preds).drop_first()) {
-            auto _res = _traverse(bb->rear());
-            if (!is<rel_base>(_res) || as<rel_base>(_res)->id != as<rel_base>(res)->id)
-               return vr;
-         } else
-         if (RSN_UNLIKELY(is<rel_base>(res)))
-         for (auto bb: range_ref(in->owner()->temp.preds).drop_first()) {
-            auto _res = _traverse(bb->rear());
-            if (!is<rel_base>(_res) || as<rel_base>(_res)->id != as<rel_base>(res)->id)
-               return vr;
-            res = std::move(_res);
-         } else
-            RSN_UNREACHABLE();
+            if (_res)
+            if (RSN_UNLIKELY(!res))
+               res = _res;
+            else
+            if (RSN_UNLIKELY(is<abs>(res))) {
+               if (!is<abs>(_res) || as<abs>(_res)->val != as<abs>(res)->val) return vr;
+            } else
+            if (RSN_UNLIKELY(is<proc>(res) || is<data>(res))) {
+               if (!is<rel_base>(_res) || as<rel_base>(_res)->id != as<rel_base>(res)->id) return vr;
+            } else
+            if (RSN_UNLIKELY(is<rel_base>(res))) {
+               if (!is<rel_base>(_res) || as<rel_base>(_res)->id != as<rel_base>(res)->id) return vr;
+               res = _res;
+            } else
+               RSN_UNREACHABLE();
+         }
          return res;
       };
       bool changed{};
@@ -79,8 +76,7 @@ namespace rsn::opt {
             for (auto bb = tu->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next()) in->temp.visited = {};
             std::puts("trying"); input->dump();
             auto res = traverse(traverse, in, lib::as<vreg>(input));
-            std::puts("result"); input->dump();
-            _changed |= res != input, input = std::move(res);
+            if (res) _changed |= res != input, input = std::move(res), std::puts("result"); input->dump();
          }
          changed |= _changed;
          if (!RSN_LIKELY(_changed)) break;
