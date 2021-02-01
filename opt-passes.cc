@@ -104,7 +104,7 @@ namespace rsn::opt {
          auto res = traverse(traverse, in->owner()->temp.preds.front()->rear(), vr);
          for (auto bb: range_ref(in->owner()->temp.preds).drop_first())
             if (traverse(traverse, in->owner()->rear(), vr) != res) return vr;
-         for (auto _in2 = in->next(); _in2 != in; _in2 = _in2->next()) for (auto &output: _in2->outputs())
+         for (auto _in2 = in->owner()->head(); _in2 != in; _in2 = _in2->next()) for (auto &output: _in2->outputs())
             if (RSN_UNLIKELY(output == res)) return vr;
          return res;
       };

@@ -38,13 +38,13 @@ int main() {
 
       opt::insn_br::make_beq(b_add_op, r_rhs_t, p_int, b_add_ret, b_oops);
       opt::insn_binop::make_add(b_add_ret, r_lhs_v, r_rhs_v, r_lhs_v);
-      opt::insn_ret::make(b_add_ret, {opt::rel_disp::make(p_int, 16), r_lhs_v});
+      opt::insn_ret::make(b_add_ret, {p_int, r_lhs_v});
 
       opt::insn_br::make_beq(b_mul_op, r_rhs_t, p_int, b_mul_ret, b_oops);
       opt::insn_binop::make_umul(b_mul_ret, r_lhs_v, r_rhs_v, r_lhs_v);
       opt::insn_ret::make(b_mul_ret, {p_int, r_lhs_v});
 
-      opt::insn_br::make_beq(b_cmpeq_op, r_rhs_t, p_int, b_mul_ret, b_oops);
+      opt::insn_br::make_beq(b_cmpeq_op, r_rhs_t, p_int, b_cmpeq_ret, b_oops);
       opt::insn_br::make_beq(b_cmpeq_ret, r_lhs_v, r_rhs_v, b_cmpeq_ret1, b_cmpeq_ret0);
       opt::insn_ret::make(b_cmpeq_ret1, {p_bool, opt::abs::make(true)});
       opt::insn_ret::make(b_cmpeq_ret0, {p_bool, opt::abs::make(false)});
@@ -89,11 +89,9 @@ int main() {
       p->dump();
    }
 
-   opt::rel_disp::make(p_int, 16)->dump();
-
    optimize(p_int), optimize(p_fact);
 
-   p_fact->dump();
+   p_int->dump(), p_fact->dump();
 
    return {};
 }
