@@ -319,7 +319,7 @@ namespace rsn::lib {
       }
    };
 
-   // Helpers for "stable" iteration over collection items
+   // Utilities for "stable" iteration over collection items
 
    template<typename Obj, typename Owner> RSN_INLINE auto all(collection_mixin<Obj, Owner> *owner)       { return all(owner->head(), {}); }
    template<typename Obj, typename Owner> RSN_INLINE auto all(const collection_mixin<Obj, Owner> *owner) { return all(owner->head(), {}); }
