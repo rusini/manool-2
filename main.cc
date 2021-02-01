@@ -2,6 +2,8 @@
 
 # include "ir.hh"
 
+namespace rsn::opt { void optimize(proc *); }
+
 namespace opt = rsn::opt;
 
 bool transform_simplify(opt::proc *pr) {
@@ -89,7 +91,7 @@ int main() {
 
    opt::rel_disp::make(p_int, 16)->dump();
 
-   transform_simplify(p_int), transform_simplify(p_fact);
+   optimize(p_int), optimize(p_fact);
 
    p_fact->dump();
 

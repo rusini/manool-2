@@ -31,7 +31,7 @@ namespace rsn::opt {
       for (auto bb = tu->head(); bb; bb = bb->next()) bb->temp.preds.shrink_to_fit();
    }
 
-   bool transform_const_propag(proc *tu) { // constant propagation (from mov and beq insns)
+   bool transform_const_propag(proc *tu) noexcept { // constant propagation (from mov and beq insns)
       static constexpr auto
       traverse = [](auto traverse, insn *in, vreg *vr) noexcept->operand *{
          for (auto _in = in->prev(); _in; _in = _in->prev()) {
@@ -86,7 +86,7 @@ namespace rsn::opt {
       return changed;
    }
 
-   bool transform_copy_propag(proc *tu) { // copy propagation
+   bool transform_copy_propag(proc *tu) noexcept { // copy propagation
       static constexpr auto
       traverse = [](auto traverse, insn *in, vreg *vr) noexcept->vreg *{
          for (auto _in = in->prev(); _in; _in = _in->prev()) {
@@ -123,7 +123,7 @@ namespace rsn::opt {
       return changed;
    }
 
-   bool transform_dce(proc *tu) { // eliminate instructions whose only effect is to produce dead values
+   bool transform_dce(proc *tu) noexcept { // eliminate instructions whose only effect is to produce dead values
       static constexpr auto
       traverse = [](auto traverse, insn *in, vreg *vr) noexcept{
          for (auto _in = in; _in; _in = _in->next()) {
