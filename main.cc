@@ -68,17 +68,15 @@ int main() {
 
       opt::insn_mov::make(b1, p_int, r_res_t);
       opt::insn_mov::make(b1, opt::abs::make(1), r_res_v);
-      //opt::insn_binop::make_add(b1, r_res_v, opt::abs::make(0), r_res_v);
       opt::insn_jmp::make(b1, b2);
 
-      opt::insn_call::make(b2, r_n_t, {opt::abs::make(1), r_n_t, r_n_v, p_int}, {r_tmp_t, r_tmp_v});
+      opt::insn_call::make(b2, r_n_t, {opt::abs::make(2), r_n_v, p_int, opt::abs::make(0)}, {r_tmp_t, r_tmp_v});
       opt::insn_br::make_beq(b2, r_tmp_t, p_bool, b3, b_oops);
 
       opt::insn_br::make_bne(b3, r_tmp_v, opt::abs::make(0), b4, b5);
 
-      //opt::insn_call::make(b4, r_res_t, {opt::abs::make(2), r_res_t, r_res_v, r_n_t, r_n_v}, {r_res_t, r_res_v});
-      opt::insn_call::make(b4, p_int, {opt::abs::make(2), r_res_v, r_n_t, r_n_v}, {r_res_t, r_res_v});
-      opt::insn_call::make(b4, r_n_t, {opt::abs::make(3), r_n_t, r_n_v, p_int, opt::abs::make(1)}, {r_n_t, r_n_v});
+      opt::insn_call::make(b4, r_res_t, {opt::abs::make(1), r_res_v, r_n_t, r_n_v}, {r_res_t, r_res_v});
+      opt::insn_call::make(b4, r_n_t, {opt::abs::make(0), r_n_v, p_int, opt::abs::make(-1)}, {r_n_t, r_n_v});
       opt::insn_jmp::make(b4, b2);
 
       opt::insn_ret::make(b5, {r_res_t, r_res_v});
