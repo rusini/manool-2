@@ -319,44 +319,52 @@ namespace rsn::lib {
       }
    };
 
-   // Helpers for "stable iteration"
-   template<typename Obj, typename Owner> RSN_INLINE auto all(collection_mixin<Obj, Owner> *owner) {
-      return all(owner->head(), {});
-   }
-   template<typename Obj, typename Owner> RSN_INLINE auto all(const collection_mixin<Obj, Owner> *owner) {
-      return all(owner->head(), {});
-   }
+   // Helpers for "stable" iteration over collection items
+
+   template<typename Obj, typename Owner> RSN_INLINE auto all(collection_mixin<Obj, Owner> *owner)       { return all(owner->head(), {}); }
+   template<typename Obj, typename Owner> RSN_INLINE auto all(const collection_mixin<Obj, Owner> *owner) { return all(owner->head(), {}); }
+   template<typename Obj, typename Owner> RSN_INLINE auto rev(collection_mixin<Obj, Owner> *owner)       { return rev({}, owner->rear()); }
+   template<typename Obj, typename Owner> RSN_INLINE auto rev(const collection_mixin<Obj, Owner> *owner) { return rev({}, owner->rear()); }
+
    template<typename Obj, typename Owner> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, decltype(nullptr)) {
       std::size_t size{}; for (auto it = begin; it; it = it->next()) ++size;
-      lib::small_vec<Obj *> res(size); for (auto it = begin; it; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
+      small_vec<Obj *> res(size); for (auto it = begin; it; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
       return res;
    }
    template<typename Obj, typename Owner> RSN_NOINLINE auto all(const collection_item_mixin<Obj, Owner> *begin, decltype(nullptr)) {
       std::size_t size{}; for (auto it = begin; it; it = it->next()) ++size;
-      lib::small_vec<const Obj *> res(size); for (auto it = begin; it; it = it->next()) res.emplace_back(static_cast<const Obj *>(it));
+      small_vec<const Obj *> res(size); for (auto it = begin; it; it = it->next()) res.emplace_back(static_cast<const Obj *>(it));
       return res;
    }
-   template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, const End *end) {
+   template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, End *end) {
       std::size_t size{}; for (auto it = begin; it != end; it = it->next()) ++size;
-      lib::small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
+      small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
       return res;
    }
-   template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(const collection_item_mixin<Obj, Owner> *begin, const End *end) {
+   template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(const collection_item_mixin<Obj, Owner> *begin, End *end) {
       std::size_t size{}; for (auto it = begin; it != end; it = it->next()) ++size;
-      lib::small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
+      small_vec<const Obj *> res(size); for (auto it = begin; it != end; it = it->next()) res.emplace_back(static_cast<const Obj *>(it));
       return res;
    }
-   template<typename Obj, typename Owner> auto rev(collection_mixin<Obj, Owner> *owner) { // in rev(erse) direction
-      return rev({}, owner->rear());
-   }
-   template<typename Obj, typename Owner> auto rev(decltype(nullptr) *, collection_item_mixin<Obj, Owner> *begin) {
+
+   template<typename Obj, typename Owner> RSN_NOINLINE auto rev(decltype(nullptr), collection_item_mixin<Obj, Owner> *begin) {
       std::size_t size{}; for (auto it = begin; it; it = it->prev()) ++size;
-      lib::small_vec<Obj *> res(size); for (auto it = begin; it; it = it->prev()) res.emplace_back(static_cast<Obj *>(it));
+      small_vec<Obj *> res(size); for (auto it = begin; it; it = it->prev()) res.emplace_back(static_cast<Obj *>(it));
       return res;
    }
-   template<typename Obj, typename Owner, typename End> auto rev(const End *end, collection_item_mixin<Obj, Owner> *begin) {
+   template<typename Obj, typename Owner> RSN_NOINLINE auto rev(decltype(nullptr), const collection_item_mixin<Obj, Owner> *begin) {
+      std::size_t size{}; for (auto it = begin; it; it = it->prev()) ++size;
+      small_vec<const Obj *> res(size); for (auto it = begin; it; it = it->prev()) res.emplace_back(static_cast<const Obj *>(it));
+      return res;
+   }
+   template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto rev(End *end, collection_item_mixin<Obj, Owner> *begin) {
       std::size_t size{}; for (auto it = begin; it != end; it = it->prev()) ++size;
-      lib::small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->prev()) res.emplace_back(static_cast<Obj *>(it));
+      small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->prev()) res.emplace_back(static_cast<Obj *>(it));
+      return res;
+   }
+   template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto rev(End *end, const collection_item_mixin<Obj, Owner> *begin) {
+      std::size_t size{}; for (auto it = begin; it != end; it = it->prev()) ++size;
+      small_vec<const Obj *> res(size); for (auto it = begin; it != end; it = it->prev()) res.emplace_back(static_cast<const Obj *>(it));
       return res;
    }
 

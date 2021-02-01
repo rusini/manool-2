@@ -87,9 +87,9 @@ int main() {
       p->dump();
    }
 
-   optimize(p_int), optimize(p_fact);
+   optimize(p_fact);
 
-   p_int->dump(), p_fact->dump();
+   p_fact->dump();
 
    return {};
 }

@@ -38,7 +38,7 @@ namespace rsn::opt {
             if (RSN_UNLIKELY(_in->temp.visited)) return vr;
             _in->temp.visited = true;
             if (RSN_UNLIKELY(is<insn_mov>(_in)) && RSN_UNLIKELY(as<insn_mov>(_in)->dest() == vr) && is<imm>(as<insn_mov>(_in)->src()))
-               return as<insn_mov>(_in)->src();
+               return std::puts("here"), as<insn_mov>(_in)->src();
             for (auto &output: _in->outputs()) if (RSN_UNLIKELY(output == vr))
                return vr;
          }
@@ -77,7 +77,9 @@ namespace rsn::opt {
          for (auto bb = tu->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
          for (auto &input: in->inputs()) if (is<vreg>(input)) {
             for (auto bb = tu->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next()) in->temp.visited = {};
+            std::puts("trying"); input->dump();
             auto res = traverse(traverse, in, lib::as<vreg>(input));
+            std::puts("result"); input->dump();
             _changed |= res != input, input = std::move(res);
          }
          changed |= _changed;

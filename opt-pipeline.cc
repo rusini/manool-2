@@ -24,6 +24,10 @@ void rsn::opt::optimize(proc *tu) {
    bool transform_cfg_gc(proc *) noexcept;
    bool transform_cfg_merge(proc *tu) noexcept;
 
+   update_cfg_preds(tu),
+   transform_const_propag(tu);
+   return;
+
    for (;;) {
       bool changed{};
       update_cfg_preds(tu),
