@@ -74,7 +74,8 @@ int main() {
 
       opt::insn_br::make_bne(b3, r_tmp_v, opt::abs::make(0), b4, b5);
 
-      opt::insn_call::make(b4, r_res_t, {opt::abs::make(2), r_res_t, r_res_v, r_n_t, r_n_v}, {r_res_t, r_res_v});
+      //opt::insn_call::make(b4, r_res_t, {opt::abs::make(2), r_res_t, r_res_v, r_n_t, r_n_v}, {r_res_t, r_res_v});
+      opt::insn_call::make(b4, p_int, {opt::abs::make(2), r_res_v, r_n_t, r_n_v}, {r_res_t, r_res_v});
       opt::insn_call::make(b4, r_n_t, {opt::abs::make(3), r_n_t, r_n_v, p_int, opt::abs::make(1)}, {r_n_t, r_n_v});
       opt::insn_jmp::make(b4, b2);
 

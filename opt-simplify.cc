@@ -1,4 +1,4 @@
-// ir.cc
+// opt-simplify.cc
 
 /*    Copyright (C) 2020, 2021 Alexey Protasov (AKA Alex or rusini)
 
@@ -30,12 +30,13 @@ namespace rsn::opt { static bool simplify(insn_binop *); }
 bool rsn::opt::insn_binop::simplify() { return opt::simplify(this); }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_binop *insn) {
-   bool changed{};
    const auto eliminate = [insn]() noexcept RSN_INLINE -> void   { insn->eliminate(); };
    const auto owner     = [insn]() noexcept RSN_INLINE -> auto   { return insn->owner(); };
    const auto lhs       = [insn]() noexcept RSN_INLINE -> auto & { return insn->lhs(); };
    const auto rhs       = [insn]() noexcept RSN_INLINE -> auto & { return insn->rhs(); };
    const auto dest      = [insn]() noexcept RSN_INLINE -> auto & { return insn->dest(); };
+
+   bool changed{};
    switch (insn->op) {
    default:
       RSN_UNREACHABLE();
@@ -376,9 +377,9 @@ bool rsn::opt::insn_call::simplify() { return opt::simplify(this); }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
    const auto eliminate = [insn]() noexcept RSN_INLINE -> void   { insn->eliminate(); };
-   const auto owner     = [insn]() noexcept RSN_INLINE -> auto   { return insn->owner(); };
-   const auto next      = [insn]() noexcept RSN_INLINE -> auto   { return insn->next(); };
-   const auto prev      = [insn]() noexcept RSN_INLINE -> auto   { return insn->prev(); };
+   const auto owner     = [insn]() noexcept RSN_INLINE -> auto * { return insn->owner(); };
+   const auto next      = [insn]() noexcept RSN_INLINE -> auto * { return insn->next(); };
+   const auto prev      = [insn]() noexcept RSN_INLINE -> auto * { return insn->prev(); };
    const auto dest      = [insn]() noexcept RSN_INLINE -> auto & { return insn->dest(); };
    const auto params    = [insn]() noexcept RSN_INLINE -> auto   { return insn->params(); };
    const auto results   = [insn]() noexcept RSN_INLINE -> auto   { return insn->results(); };
@@ -434,5 +435,5 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
       }
    }
 
-   eliminate(); return true;
+   return eliminate(), true;
 }

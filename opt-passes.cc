@@ -1,6 +1,6 @@
-// opt.cc -- analysis and transformation passes
+// opt-passes.cc -- analysis and transformation passes
 
-/*    Copyright (C) 2020 Alexey Protasov (AKA Alex or rusini)
+/*    Copyright (C) 2020, 2021 Alexey Protasov (AKA Alex or rusini)
 
    This is free software: you can redistribute it and/or modify it under the terms of the version 3 of the GNU General Public License
    as published by the Free Software Foundation (and only version 3).
@@ -8,7 +8,7 @@
    This software is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along with MANOOL.  If not, see <https://www.gnu.org/licenses/>.  */
+   You should have received a copy of the GNU General Public License along with this software.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 # include "opt.hh"
@@ -215,19 +215,6 @@ namespace rsn::opt {
       for (auto bb: all(tu->front()) if (!RSN_LIKELY(bb->temp.visited))
          bb->remove(), changed = true;
       return changed;
-   }
-
-   template<typename Obj> RSN_NOINLINE auto all(Obj *begin, Obj *end = {})->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<Obj *>> {
-      std::size_t size = 0; for (auto node = begin; node != end; node = node->next()) ++size;
-      {  lib::small_vec<Obj *> res(size); for (auto node = begin; node != end; node = node->next()) res.push_back(node);
-         return res;
-      }
-   }
-   template<typename Obj> RSN_NOINLINE auto rev(Obj *begin, Obj *end = {})->std::enable_if_t<std::is_base_of_v<aux::node, Obj>, lib::small_vec<Obj *>> {
-      std::size_t size = 0; for (auto node = begin; node != end; node = node->prev()) ++size;
-      {  lib::small_vec<Obj *> res(size); for (auto node = begin; node != end; node = node->prev()) res.push_back(node);
-         return res;
-      }
    }
 
 }

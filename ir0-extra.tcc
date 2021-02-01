@@ -1,4 +1,4 @@
-// opt-temp.tcc
+// ir0-extra.tcc
 
 # ifdef RSN_OPT_EXTRA_PROC
 # endif
