@@ -44,13 +44,6 @@ namespace rsn::lib {
       noncopyable(const noncopyable &) = delete;
       noncopyable &operator=(const noncopyable &) = delete;
    };
-   // Downcast for raw pointers to non-copyables
-   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> is(Src *src) noexcept
-      { static_assert(std::is_convertible_v<Dest *, const Src *>); return src->template type_check<std::remove_cv_t<Dest>>(); }
-   template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, Dest *> as(Src *src) noexcept
-      { static_assert(std::is_convertible_v<Dest *, const Src *>); return static_cast<Dest *>(src); }
-
-   template<typename> class smart_ptr;
 
    class smart_rc_mixin: noncopyable<smart_rc_mixin> {
    protected:
@@ -62,6 +55,14 @@ namespace rsn::lib {
       long rc = 1;
       template<typename> friend class smart_ptr;
    };
+
+   // Downcast for raw pointers to non-copyables
+   template<typename Dest, typename Src>
+   RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src> || std::is_base_of_v<smart_rc_mixin, Src>, bool> is(Src *src) noexcept
+      { static_assert(std::is_convertible_v<Dest *, const Src *>); return src->template type_check<std::remove_cv_t<Dest>>(); }
+   template<typename Dest, typename Src>
+   RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src> || std::is_base_of_v<smart_rc_mixin, Src>, Dest *> as(Src *src) noexcept
+      { static_assert(std::is_convertible_v<Dest *, const Src *>); return static_cast<Dest *>(src); }
 
    template<typename Obj> class smart_ptr { // simple, intrussive, and MT-unsafe analog of std::shared_ptr
    public: // standard operations
@@ -87,16 +88,16 @@ namespace rsn::lib {
    private: // internal representation
       Obj *rep{};
       template<typename> friend class smart_ptr;
+      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
    private: // implementation helpers
       RSN_INLINE explicit smart_ptr(Obj *rep, int) noexcept: rep(rep) {}
       RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++static_cast<smart_rc_mixin *>(rep)->rc; }
       RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--static_cast<smart_rc_mixin *>(rep)->rc)) delete rep; }
-      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>> as_smart(const smart_ptr<Src> &) noexcept;
-      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
    };
-   // Non-member functions
+   // Non-member operations
    template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept
       { lhs.swap(rhs); }
+
    // Downcast utilities
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, bool> is(const smart_ptr<Src> &src) noexcept
       { return is<Dest>(&*src); }
@@ -244,7 +245,7 @@ namespace rsn::lib {
    };
    // Deduction guides
    template<typename Rhs> small_vec(Rhs &&) -> small_vec<std::decay_t<decltype(*aux::_begin(std::declval<Rhs>()))>>;
-   // Non-member functions
+   // Non-member operations
    template<typename Obj, std::size_t MinRes> RSN_INLINE inline void swap(small_vec<Obj, MinRes> &lhs, small_vec<Obj, MinRes> &rhs) noexcept // for completeness
       { lhs.swap(rhs); }
    template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator==(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
