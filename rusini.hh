@@ -88,11 +88,11 @@ namespace rsn::lib {
    private: // internal representation
       Obj *rep{};
       template<typename> friend class smart_ptr;
-      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
    private: // implementation helpers
       RSN_INLINE explicit smart_ptr(Obj *rep, int) noexcept: rep(rep) {}
       RSN_INLINE void retain() const noexcept { if (RSN_LIKELY(rep)) ++static_cast<smart_rc_mixin *>(rep)->rc; }
       RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--static_cast<smart_rc_mixin *>(rep)->rc)) delete rep; }
+      template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
    };
    // Non-member operations
    template<typename Obj> RSN_INLINE inline void swap(smart_ptr<Obj> &lhs, smart_ptr<Obj> &rhs) noexcept
