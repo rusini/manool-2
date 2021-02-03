@@ -74,7 +74,7 @@ namespace rsn::lib {
       RSN_INLINE void swap(smart_ptr &rhs) noexcept { using std::swap; swap(rep, rhs.rep); }
    public: // miscellaneous operations
       template<typename ...Args> RSN_INLINE RSN_NODISCARD static auto make(Args &&...args)
-         { return smart_ptr(new Obj(smart_rc_mixin::smart_tag{}, std::forward<Args>(args)...)); }
+         { return smart_ptr(new Obj(smart_rc_mixin::smart_tag{}, std::forward<Args>(args)...), 0); }
    public:
       RSN_INLINE smart_ptr(Obj *rhs) noexcept: rep(rhs) { retain(); }
       template<typename Rhs> RSN_INLINE smart_ptr(const smart_ptr<Rhs> &rhs) noexcept: rep(rhs) { retain(); }
@@ -103,7 +103,9 @@ namespace rsn::lib {
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, Dest *> as(const smart_ptr<Src> &src) noexcept
       { return as<Dest>(&*src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>>
-      as_smart(const smart_ptr<Src> &src) noexcept { return smart_ptr{as<Dest>(src), 0}; }
+      as_smart(const smart_ptr<Src> &src) noexcept { return as<Dest>(src); }
+   template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>>
+      as_smart(Src *src) noexcept { return as<Dest>(src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>>
       as_smart(smart_ptr<Src> &&src) noexcept { auto res = smart_ptr{as<Dest>(src), 0}; src.rep = {}; return res; }
 
