@@ -107,7 +107,7 @@ namespace rsn::lib {
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>>
       as_smart(Src *src) noexcept { return as<Dest>(src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, smart_ptr<Dest>>
-      as_smart(smart_ptr<Src> &&src) noexcept { auto res = smart_ptr{as<Dest>(src), 0}; src.rep = {}; return res; }
+      as_smart(smart_ptr<Src> &&src) noexcept { smart_ptr res(as<Dest>(src), 0); src.rep = {}; return res; }
 
    // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
