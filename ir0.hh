@@ -87,7 +87,6 @@ namespace rsn::opt {
    private:
       template<typename> bool type_check() const noexcept = delete; // fast (and trivial) RTTI
       template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept;
-      template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<smart_rc_mixin, Src>, bool> lib::is(const lib::smart_ptr<Src> &) noexcept;
    # if RSN_USE_DEBUG
    public: // debugging
       virtual void dump() const noexcept = 0;
@@ -278,8 +277,10 @@ namespace rsn::opt {
    class insn: protected aux::node, // IR instruction
       public lib::collection_item_mixin<insn, bblock> {
    protected: // constructors/destructors
-      RSN_INLINE explicit insn(bblock *owner) noexcept: collection_item_mixin(owner) {} // attach to the specified owner basic block at the end
-      RSN_INLINE explicit insn(insn *next) noexcept: collection_item_mixin(next) {}     // attach to the owner basic block before the specified sibling instruction
+      RSN_INLINE explicit insn(bblock *owner, unsigned kind = {}) noexcept // attach to the specified owner basic block at the end
+         : collection_item_mixin(owner), kind(kind) {}
+      RSN_INLINE explicit insn(insn *next, unsigned kind = {}) noexcept // attach to the owner basic block before the specified sibling instruction
+         : collection_item_mixin(next), kind(kind) {}
    protected:
       RSN_INLINE virtual ~insn() = default;
       friend collection_item_mixin;
@@ -298,7 +299,9 @@ namespace rsn::opt {
       RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                { return _targets; }
    public: // miscellaneous
       RSN_INLINE virtual bool simplify() { return {}; } // constant folding, algebraic simplification, and canonicalization
-   protected: // internal representation
+   private: // internal representation
+      const unsigned kind;
+   protected:
       lib::range_ref<lib::smart_ptr<operand> *> _inputs{nullptr, nullptr}; // the optimizer is to eliminate
       lib::range_ref<lib::smart_ptr<vreg> *> _outputs{nullptr, nullptr};   //  redundant stores
       lib::range_ref<bblock **> _targets{nullptr, nullptr};                //  in initialization
