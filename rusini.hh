@@ -87,8 +87,8 @@ namespace rsn::lib {
       template<typename> friend class smart_ptr;
    private: // implementation helpers
       RSN_INLINE explicit smart_ptr(Obj *rep, int) noexcept: rep(rep) {}
-      RSN_INLINE void retain() const noexcept  { smart_rc_mixin *_rep = rep; if (RSN_LIKELY(rep)) ++_rep->rc; }
-      RSN_INLINE void release() const noexcept { smart_rc_mixin *_rep = rep; if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--_rep->rc)) delete rep; }
+      RSN_INLINE void retain() const noexcept  { if (RSN_LIKELY(rep)) ++static_cast<smart_rc_mixin *>(rep)->rc; }
+      RSN_INLINE void release() const noexcept { if (RSN_LIKELY(rep) && RSN_UNLIKELY(!--static_cast<smart_rc_mixin *>(rep)->rc)) delete rep; }
       template<typename Dest, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, smart_ptr<Dest>> as_smart(smart_ptr<Src> &&) noexcept;
    };
    // Non-member operations
@@ -96,9 +96,9 @@ namespace rsn::lib {
 
    // Downcast for smart_ptr
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> is(const smart_ptr<Src> &src) noexcept
-      { return is<Dest>(&*src); }
+      { return is<Dest>((Src *)src); }
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, Dest *> as(const smart_ptr<Src> &src) noexcept
-      { return as<Dest>(&*src); }
+      { return as<Dest>((Src *)src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, smart_ptr<Dest>>
       as_smart(const smart_ptr<Src> &src) noexcept { return as<Dest>(src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, smart_ptr<Dest>>

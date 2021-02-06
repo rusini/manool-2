@@ -89,9 +89,12 @@
 # endif
 
 # if RSN_USE_DEBUG
+   # include <cstdio> // fprintf, fputc, fputs, stderr
    # define RSN_IF_USING_DEBUG(...) __VA_ARGS__
+   # define RSN_IF_NOT_USING_DEBUG(...)
 # else
    # define RSN_IF_USING_DEBUG(...)
+   # define RSN_IF_NOT_USING_DEBUG(...) __VA_ARGS__
 # endif
 
 # endif // # ifndef RSN_INCLUDED_RUSINI0

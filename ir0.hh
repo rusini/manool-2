@@ -17,10 +17,6 @@
 # include <utility> // pair
 # include <vector>
 
-# if RSN_USE_DEBUG
-   # include <cstdio> // fprintf, fputc, fputs, stderr
-# endif
-
 # include "rusini.hh"
 
 namespace rsn::opt {
