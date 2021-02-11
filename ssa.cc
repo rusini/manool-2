@@ -76,54 +76,10 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          for (auto &output: in->outputs()) place(place, placed, output, bb);
    }
    // Rename Virtual Registers /////////////////////////////////////////////////
-   {  static constexpr auto traverse = [](auto traverse, bblock *bb, vreg *from, vreg *to) noexcept RSN_NOINLINE{
-         if (RSN_UNLKELY(bb->visited)) return;
-         bb->visited = true;
-         auto in = bb->head();
-         for (; is<insn_phi>(in); in = in->next())
-         if (RSN_UNLIKELY(as<insn_phi>(in)->dest() == from)) {
-            as<insn_phi>(in)->dest() = to = vreg::make();
-            while (is<insn_phi>(in = in->next())); break;
-         }
-         for (; in; in = in->next())
-            for (auto &input: in->inputs()) if (RSN_UNLIKELY(input == from)) input = to;
-            for (auto &output: in->outputs()) output = to = vreg::make();
-         for (auto _bb: bb->aux.succs) {
-            for (auto in = _bb->head(); is<insn_phi>(in); in = in->next())
-            if (RSN_UNLIKELY(as<insn_phi>(in)->srcs()[_bb->pred_counter] == from)) {
-               as<insn_phi>(in)->srcs()[_bb->pred_counter] = to;
-               break;
-            }
-            ++_bb->pred_counter;
-            traverse(traverse, _bb, from, to);
-         }
-
-         for (auto &target: bb->rear()->targets()) {
-            for (auto in = target->head(); is<insn_phi>(in); in = in->next())
-            if (RSN_UNLIKELY(as<insn_phi>(in)->srcs()[target->pred_counter] == from)) {
-               as<insn_phi>(in)->srcs()[target->pred_counter] = to;
-               break;
-            }
-            ++target->pred_counter;
-            traverse(traverse, target, from, to);
-         }
-
-      };
-      std::small_vec<vreg *, 510> vregs;
-      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
-         for (auto &output: in->outputs()) output->aux.visited = false;
-      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
-         for (auto &output: in->outputs()) if (!output->aux.visited) output->aux.visited = true, vregs.emplace_back(output);
-      for (auto vr: vregs) {
-         for (auto bb = pc->head(); bb; bb = bb->next()) bb->aux.visited = false, bb->aux.count = 0;
-         traverse(traverse, pc->head(), vr, vr);
-      }
-   }
-   // Rename Virtual Registers /////////////////////////////////////////////////
    {  static constexpr auto traverse = [](auto traverse, bblock *bb) noexcept RSN_NOINLINE{
          if (RSN_UNLKELY(bb->aux.visited)) return;
          bb->aux.visited = true;
-         std::vector<std::pair<vreg *, vreg *>> stack;
+         std::vector<std::pair<vreg *, vreg *>> stack; stack.reserve(510);
          auto in = bb->head();
          for (; is<insn_phi>(in); in = in->next())
             as<insn_phi>(in)->dest() = as<insn_phi>(in)->dest()->aux.vr = vreg::make();
