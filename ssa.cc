@@ -76,16 +76,34 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          for (auto &output: in->outputs()) place(place, placed, output, bb);
    }
    // Rename Virtual Registers /////////////////////////////////////////////////
-   {  static constexpr auto traverse = [](auto traverse, bblock *bb) noexcept RSN_NOINLINE{
+   {  static constexpr auto traverse =
+      [](auto traverse, bblock *bb) noexcept RSN_NOINLINE{
          if (RSN_UNLKELY(bb->aux.visited)) return;
          bb->aux.visited = true;
-         std::vector<std::pair<vreg *, vreg *>> stack; stack.reserve(510);
+         lib::small_vec<std::pair<lib::smart_ptr<vreg>, vreg *>> stack(
+         [bb]() noexcept RSN_INLINE{
+            lib::small_vec<std::pair<vreg *, vreg *>>::size_type count = 0;
+            auto in = bb->head();
+            for (; is<insn_phi>(in); in = in->next()) {
+               ++count;
+            }
+            for (; in; in = in->next()) {
+               for (auto &input: in->inputs()) if (is<vreg>(input)) ++count;
+               count += in->outputs().count();
+            }
+            return count;
+         }() );
          auto in = bb->head();
-         for (; is<insn_phi>(in); in = in->next())
-            as<insn_phi>(in)->dest() = as<insn_phi>(in)->dest()->aux.vr = vreg::make();
+         for (; is<insn_phi>(in); in = in->next()) {
+            stack.push_back({std::move(as<insn_phi>(in)->dest()), as<insn_phi>(in)->dest()->aux.vr}),
+               as<insn_phi>(in)->dest() = vreg::make(), stack.back().first->aux.vr = as<insn_phi>(in)->dest();
+         }
          for (; in; in = in->next()) {
-            for (auto &input: in->inputs()) if (is<vreg>(input)) input = as<vreg>(input)->aux.vr;
-            for (auto &output: in->outputs()) stack.push_back({output, output->aux.vr}), output = output->aux.vr = vreg::make();
+            for (auto &input: in->inputs())
+               if (is<vreg>(input)) input = as<vreg>(input)->aux.vr;
+            for (auto &output: in->outputs())
+               stack.push_back({std::move(output), output->aux.vr}),
+                  output = vreg::make(), stack.back().first->aux.vr = output;
          }
          for (auto _bb: bb->aux.succs) {
             for (auto in = _bb->head(); is<insn_phi>(in); in = in->next())
@@ -98,8 +116,10 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       };
       for (auto bb = pc->head(); bb; bb = bb->next()) {
          bb->aux.visited = false, bb->aux.phi_arg_index;
-         for (auto in = bb->head(); in; in = in->next())
-         for (auto &input: in->inputs()) if (is<vreg>(input)) as<vreg>(input)->aux.vr = as<vreg>(input);
+         for (auto in = bb->head(); in; in = in->next()) {
+            for (auto &input: in->inputs()) if (is<vreg>(input)) as<vreg>(input)->aux.vr = as<vreg>(input);
+            for (auto &output: in->outputs()) output->aux.vr = output;
+         }
       }
       traverse(traverse, pc->head());
    }
