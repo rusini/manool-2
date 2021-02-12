@@ -55,34 +55,40 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          if (RSN_UNLIKELY(!changed)) return;
       }
    }
+   {  auto finally_dom_front_v =
+         lib::finally{[pc]() noexcept RSN_INLINE{ for (auto bb = pc->head(); bb; bb = bb->next()) bb->aux_dom_front_v.clear(); }};
    // Compute Dominance Frontiers //////////////////////////////////////////////
-   const auto _finally_dom_front = lib::finally([pc]() noexcept RSN_INLINE{
-      for (auto bb = pc->head(); bb; bb = bb->next) bb->aux.dom_front.clear();
-   });
-   for (auto bb = pc->head(); bb; bb = bb->next)
-   if (RSN_UNLIKELY(bb->aux.preds.size() > 1))
-   for (auto runner: bb->aux.preds)
-   for (; runner != bb->aux.idom; runner = runner->aux.idom)
-      runner->aux.dom_front.insert(bb);
+      {  auto finally_dom_front_s =
+            lib::finally{[pc]() noexcept RSN_INLINE{ for (auto bb = pc->head(); bb; bb = bb->next()) bb->aux_dom_front_s.clear(); }};
+         for (auto bb = pc->head(); bb; bb = bb->next())
+         if (RSN_UNLIKELY(bb->aux_preds.size() > 1))
+         for (auto runner: bb->aux_preds)
+         for (; runner != bb->aux_idom; runner = runner->aux_idom)
+            runner->aux_dom_front_s.insert(bb);
+         for (auto bb = pc->head(); bb; bb = bb->next()) bb->aux_dom_front_v.clear(bb->aux_dom_front_s);
+      }
    // Place Trivial Phi-functions for a Minimal (Non-pruned) SSA ///////////////
-   {  std::set<std::pair<vreg *, bblock *>> placed;
-      static constexpr auto place = [](auto place, decltype(placed) &placed, vreg *vr, bblock *bb) noexcept RSN_NOINLINE{
-         for (auto _bb: bb->aux.dom_front) if (RSN_LIKELY(placed.find({vr, _bb}) == placed.end())) {
-            insn_phi::make(_bb->head(), std::vector<lib::smart_ptr<vreg>>(_bb->aux.preds.size(), vr));
-            placed.insert({vr, _bb}), place(place, placed, vr, bb->aux.dom_front);
+      std::set<std::pair<vreg *, bblock *>> placed;
+      static constexpr auto traverse =
+      [](auto traverse, decltype(placed) &placed, vreg *vr, bblock *bb) RSN_NOINLINE{
+         for (auto _bb: bb->aux.dom_front_v) if (RSN_UNLIKELY(placed.find({vr, _bb}) == placed.end())) {
+            insn_phi::make(_bb->head(), std::vector<lib::smart_ptr<vreg>>(_bb->aux.preds.size(), vr), vr), placed.insert({vr, _bb});
+            traverse(traverse, placed, vr, _bb);
          }
       };
+      // O(statements * blocks * log(statements * blocks)), which is probably OK:
       for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
-         for (auto &output: in->outputs()) place(place, placed, output, bb);
+         if (RSN_LIKELY(!is<insn_phi>(in))) for (auto &output: in->outputs()) traverse(traverse, placed, output, bb);
    }
    // Rename Virtual Registers /////////////////////////////////////////////////
    {  static constexpr auto traverse =
-      [](auto traverse, bblock *bb) noexcept RSN_NOINLINE{
+      [](auto traverse, bblock *bb) RSN_NOINLINE{
          if (RSN_UNLKELY(bb->aux.visited)) return;
          bb->aux.visited = true;
+         // stack to restore mapping at the end
          lib::small_vec<std::pair<lib::smart_ptr<vreg>, vreg *>> stack(
          [bb]() noexcept RSN_INLINE{
-            lib::small_vec<std::pair<vreg *, vreg *>>::size_type count = 0;
+            lib::small_vec<std::pair<lib::smart_ptr<vreg>, vreg *>>::size_type count = 0;
             auto in = bb->head();
             for (; is<insn_phi>(in); in = in->next()) {
                ++count;
@@ -94,10 +100,12 @@ void rsn::opt::transform_to_ssa(proc *pc) {
             return count;
          }() );
          auto in = bb->head();
+         // rewrite phi destinations
          for (; is<insn_phi>(in); in = in->next()) {
             stack.push_back({std::move(as<insn_phi>(in)->dest()), as<insn_phi>(in)->dest()->aux.vr}),
                as<insn_phi>(in)->dest() = vreg::make(), stack.back().first->aux.vr = as<insn_phi>(in)->dest();
          }
+         // rewrite normal instructions
          for (; in; in = in->next()) {
             for (auto &input: in->inputs())
                if (is<vreg>(input)) input = as<vreg>(input)->aux.vr;
@@ -105,17 +113,22 @@ void rsn::opt::transform_to_ssa(proc *pc) {
                stack.push_back({std::move(output), output->aux.vr}),
                   output = vreg::make(), stack.back().first->aux.vr = output;
          }
+         // process successors
          for (auto _bb: bb->aux.succs) {
+            // rewrite phi inputs
             for (auto in = _bb->head(); is<insn_phi>(in); in = in->next())
                as<insn_phi>(in)->args()[_bb->aux.phi_arg_index] = as<insn_phi>(in)->args()[_bb->aux.phi_arg_index]->aux.vr;
             ++_bb->aux.phi_arg_index;
+            // recur into the successor
             traverse(traverse, _bb);
          }
+         // restore mapping
          while (!stack.empty())
             stack.back().first->aux.vr = stack.back().second, stack.pop_back();
       };
+      // initialization and start
       for (auto bb = pc->head(); bb; bb = bb->next()) {
-         bb->aux.visited = false, bb->aux.phi_arg_index;
+         bb->aux.visited = false, bb->aux.phi_arg_index = 0;
          for (auto in = bb->head(); in; in = in->next()) {
             for (auto &input: in->inputs()) if (is<vreg>(input)) as<vreg>(input)->aux.vr = as<vreg>(input);
             for (auto &output: in->outputs()) output->aux.vr = output;

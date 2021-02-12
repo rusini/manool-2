@@ -463,6 +463,44 @@ namespace rsn::opt {
    # endif
    };
 
+   class insn_phi final: public insn {
+   public: // construction/destruction
+      RSN_INLINE static auto make( bblock *owner,
+         std::vector<lib::smart_ptr<operand>> args, lib::smart_ptr<vreg> dest )
+         { return new insn_phi(owner, std::move(args), std::move(dest)); }
+      RSN_INLINE static auto make( insn *next,
+         std::vector<lib::smart_ptr<operand>> args, lib::smart_ptr<vreg> dest )
+         { return new insn_phi(next,  std::move(args), std::move(dest)); }
+   public:
+      RSN_NOINLINE insn_phi *clone(bblock *owner) const override { return new insn_phi(owner, _inputs, _outputs); }
+      RSN_NOINLINE insn_phi *clone(insn *next) const override { return new insn_phi(next, _inputs, _outputs); }
+   public: // data operands and jump targets
+      RSN_INLINE auto  args() noexcept       { return lib::range_ref{_inputs.begin(), _inputs.end()}; }
+      RSN_INLINE auto  args() const noexcept { return lib::range_ref{_inputs.begin(), _inputs.end()}; }
+      RSN_INLINE auto &dest() noexcept       { return _outputs[0]; }
+      RSN_INLINE auto &dest() const noexcept { return _outputs[0]; }
+   private: // internal representation
+      std::vector<lib::smart_ptr<operand>> _inputs;
+      std::array<lib::smart_ptr<vreg>, 1> _outputs;
+   private: // implementation helpers
+      template<typename Loc> RSN_INLINE explicit insn_phi( Loc loc,
+         std::vector<lib::smart_ptr<operand>> &&args, lib::smart_ptr<vreg> &&dest ) noexcept
+         : insn(loc, 'phi'), _inputs(std::move(args)), _outputs{std::move(dest)} {
+         _inputs.shrink_to_fit();
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
+      }
+      template<typename Loc> RSN_INLINE explicit insn_phi( Loc loc,
+         const decltype(_inputs) &inputs, const decltype(_outputs) &outputs ) noexcept
+         : insn(loc, 'phi'), _inputs(inputs), _outputs(outputs) {
+         insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
+      }
+   # if RSN_USE_DEBUG
+   public: // debugging
+      void dump() const noexcept override { log << "phi " << args() << " -> " << dest(); }
+   # endif
+   };
+   template<> RSN_INLINE inline bool insn::type_check<insn_phi>() const noexcept { return kind == 'phi'; }
+
 } // namespace rsn::opt
 
 # endif // # ifndef RSN_INCLUDED_IR

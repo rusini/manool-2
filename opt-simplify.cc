@@ -385,19 +385,41 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
    const auto results   = [insn]() noexcept RSN_INLINE -> auto   { return insn->results(); };
 
    if (RSN_LIKELY(!is<proc>(dest()))) return {};
-   auto pr = as<proc>(dest());
+   auto pc = as<proc>(dest());
+
+   auto bbmap = []() RSN_INLINE{
+      lib::smart_ptr<bblock *, 510>::size_type count = 0;
+      for (auto bb = pc->head(); bb; bb = bb->next()) ++count;
+      lib::smart_ptr<bblock *, 510> res(count);
+      res.extend(count);
+      return res;
+   }();
+   auto vrmap = []() RSN_INLINE{
+      lib::smart_ptr<smart_ptr<vreg>, 510>::size_type count = 0;
+      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next()) {
+         for (auto &inputs: in->inputs()) if (is<vreg>(input)) ++count;
+         count += int->outputs().size();
+      }
+      lib::smart_ptr<smart_ptr<vreg>, 510> res(count);
+      for (; count; --count) res.push_back(vreg::make());
+      return res;
+   }();
 
    // integrate and expand the insn_entry
-   if (RSN_UNLIKELY(as<insn_entry>(pr->head()->head())->params().size() != params().size()))
+   if (RSN_UNLIKELY(as<insn_entry>(pc->head()->head())->params().size() != params().size()))
       insn_oops::make(insn);
    else
    for (std::size_t sn = 0, size = params().size(); sn < size; ++sn)
-      insn_mov::make(insn, std::move(params()[sn]), as<insn_entry>(pr->head()->head())->params()[sn]);
+      insn_mov::make(insn, std::move(params()[sn]), !is<vreg>(as<insn_entry>(pc->head()->head())->params()[sn]) ?
+         as<insn_entry>(pc->head()->head())->params()[sn] : vrmap[as<vreg>(as<insn_entry>(pc->head()->head())->params()[sn])->sn]);
    // integrate the rest of entry BB
-   for (auto in = pr->head()->head()->next(); in; in = in->next())
+   for (auto in = pc->head()->head()->next(); in; in = in->next()) {
       in->clone(insn);
+      for (auto &input: prev()->inputs()) if (is<vreg>(input)) input = vrmap[as<vreg>(input)->sn];
+      for (auto &output: prev()->outputs()) output = vrmap[output->sn];
+   }
 
-   if (RSN_LIKELY(!pr->head()->next())) {
+   if (RSN_LIKELY(!pc->head()->next())) {
       // expand the insn_ret
       if (RSN_UNLIKELY(as<insn_ret>(prev())->results().size() != results().size()))
          insn_oops::make(prev());
@@ -406,32 +428,35 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
          insn_mov::make(prev(), std::move(as<insn_ret>(prev())->results()[sn]), std::move(results()[sn]));
       prev()->eliminate();
    } else {
-      pr->head()->temp.bb = owner();
+      bbmap[pc->head()->sn] = owner();
       {  // split the BB at the insn_call
          auto bb = RSN_LIKELY(owner()->next()) ? bblock::make(owner()->next()) : bblock::make(owner()->owner());
          for (auto in: all(insn, {})) in->reattach(bb);
       }
       // integrate the rest of BBs
-      for (auto bb = pr->head()->next(); bb; bb = bb->next()) {
-         bb->temp.bb = bblock::make(owner());
+      for (auto bb = pc->head()->next(); bb; bb = bb->next()) {
+         bbmap[bb->sn] = bblock::make(owner());
          // integrate instructions
-         for (auto in = bb->head(); in; in = in->next())
+         for (auto in = bb->head(); in; in = in->next()) {
             in->clone(owner()->prev());
+            for (auto &input: owner()->prev()->rear()->inputs()) if (is<vreg>(input)) input = vrmap[as<vreg>(input)->sn];
+            for (auto &output: owner()->prev()->rear()->outputs()) output = vrmap[output->sn];
+         }
       }
 
-      for (auto bb = pr->head(); bb; bb = bb->next())
-      if (RSN_LIKELY(!is<insn_ret>(bb->temp.bb->rear())))
+      for (auto bb = pc->head(); bb; bb = bb->next())
+      if (RSN_LIKELY(!is<insn_ret>(bbmap[bb->sn]->rear())))
          // fixup jump targets
-         for (auto &target: bb->temp.bb->rear()->targets()) target = target->temp.bb;
+         for (auto &target: bbmap[bb->sn]->rear()->targets()) target = bbmap[target->sn];
       else {
          // expand an insn_ret
-         if (RSN_UNLIKELY(as<insn_ret>(bb->temp.bb->rear())->results().size() != results().size()))
-            insn_oops::make(bb->temp.bb->rear());
+         if (RSN_UNLIKELY(as<insn_ret>(bbmap[bb->sn]->rear())->results().size() != results().size()))
+            insn_oops::make(bbmap[bb->sn]->rear());
          else
          for (std::size_t sn = 0, size = results().size(); sn < size; ++sn)
-            insn_mov::make(bb->temp.bb->rear(), std::move(as<insn_ret>(bb->temp.bb->rear())->results()[sn]), results()[sn]);
-         insn_jmp::make(bb->temp.bb->rear(), owner());
-         bb->temp.bb->rear()->eliminate();
+            insn_mov::make(bbmap[bb->sn]->rear(), std::move(as<insn_ret>(bbmap[bb->sn]->rear())->results()[sn]), results()[sn]);
+         insn_jmp::make(bbmap[bb->sn]->rear(), owner());
+         bbmap[bb->sn]->rear()->eliminate();
       }
    }
 
