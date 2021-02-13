@@ -372,46 +372,45 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_switch_br *in) {
    return insn_jmp::make(in, in->dests()[as<abs>(in->index())->val]), in->eliminate(), true;
 }
 
-namespace rsn::opt { static bool simplify(insn_call *); }
-bool rsn::opt::insn_call::simplify() { return opt::simplify(this); }
+namespace rsn::opt { static bool simplify(insn_call *); bool insn_call::simplify() { return opt::simplify(this); } }
 
-RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
-   const auto eliminate = [insn]() noexcept RSN_INLINE -> void   { insn->eliminate(); };
-   const auto owner     = [insn]() noexcept RSN_INLINE -> auto * { return insn->owner(); };
-   const auto next      = [insn]() noexcept RSN_INLINE -> auto * { return insn->next(); };
-   const auto prev      = [insn]() noexcept RSN_INLINE -> auto * { return insn->prev(); };
-   const auto dest      = [insn]() noexcept RSN_INLINE -> auto & { return insn->dest(); };
-   const auto params    = [insn]() noexcept RSN_INLINE -> auto   { return insn->params(); };
-   const auto results   = [insn]() noexcept RSN_INLINE -> auto   { return insn->results(); };
+RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
+   // context shortcuts
+   auto owner = [insn]() noexcept RSN_INLINE{ return insn->owner(); };
+   auto next  = [insn]() noexcept RSN_INLINE{ return insn->next(); };
+   auto prev  = [insn]() noexcept RSN_INLINE{ return insn->prev(); };
+   auto eliminate = [insn]() noexcept RSN_INLINE{ insn->eliminate(); };
+   const decltype(insn->dest())    _dest    = insn->dest();    auto dest    = [&_dest]() noexcept RSN_INLINE->auto &    { return _dest; };
+   const decltype(insn->params())  _params  = insn->params();  auto params  = [&_params]() noexcept RSN_INLINE->auto &  { return _params; };
+   const decltype(insn->results()) _results = insn->results(); auto results = [&_results]() noexcept RSN_INLINE->auto & { return _results; };
 
-   if (RSN_LIKELY(!is<proc>(dest()))) return {};
+   if (RSN_LIKELY(!is<proc>(dest()))) return false;
    auto pc = as<proc>(dest());
 
-   auto bbmap = []() RSN_INLINE{
-      lib::smart_ptr<bblock *, 510>::size_type count = 0;
+   // temporary mappings
+   auto bbmap = [&]() RSN_INLINE{
+      lib::small_vec<bblock *, 510>::size_type count = 0;
       for (auto bb = pc->head(); bb; bb = bb->next()) ++count;
-      lib::smart_ptr<bblock *, 510> res(count);
+      lib::small_vec<bblock *, 510> res(count);
       res.extend(count);
       return res;
    }();
-   auto vrmap = []() RSN_INLINE{
-      lib::smart_ptr<smart_ptr<vreg>, 510>::size_type count = 0;
+   auto vrmap = [&]() RSN_INLINE{
+      lib::small_vec<lib::smart_ptr<vreg>, 510>::size_type count = 0;
       for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next()) {
-         for (auto &inputs: in->inputs()) if (is<vreg>(input)) ++count;
-         count += int->outputs().size();
+         for (auto &input: in->inputs()) if (is<vreg>(input)) if (RSN_UNLIKELY(as<vreg>(input)->sn >= count)) count = as<vreg>(input)->sn + 1;
+         for (auto &output: in->outputs()) if (RSN_UNLIKELY(output->sn >= count)) count = output->sn + 1;
       }
-      lib::smart_ptr<smart_ptr<vreg>, 510> res(count);
-      for (; count; --count) res.push_back(vreg::make());
+      lib::small_vec<lib::smart_ptr<vreg>, 510> res(count);
+      for (; count; --count) res.emplace_back(vreg::make());
       return res;
    }();
 
    // integrate and expand the insn_entry
    if (RSN_UNLIKELY(as<insn_entry>(pc->head()->head())->params().size() != params().size()))
       insn_oops::make(insn);
-   else
-   for (std::size_t sn = 0, size = params().size(); sn < size; ++sn)
-      insn_mov::make(insn, std::move(params()[sn]), !is<vreg>(as<insn_entry>(pc->head()->head())->params()[sn]) ?
-         as<insn_entry>(pc->head()->head())->params()[sn] : vrmap[as<vreg>(as<insn_entry>(pc->head()->head())->params()[sn])->sn]);
+   else for (std::size_t sn = 0; sn < params().size(); ++sn)
+      insn_mov::make(insn, std::move(params()[sn]), vrmap[as<insn_entry>(pc->head()->head())->params()[sn]->sn]);
    // integrate the rest of entry BB
    for (auto in = pc->head()->head()->next(); in; in = in->next()) {
       in->clone(insn);
@@ -424,7 +423,7 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
       if (RSN_UNLIKELY(as<insn_ret>(prev())->results().size() != results().size()))
          insn_oops::make(prev());
       else
-      for (std::size_t sn = 0, size = results().size(); sn < size; ++sn)
+      for (std::size_t sn = 0; sn < results().size(); ++sn)
          insn_mov::make(prev(), std::move(as<insn_ret>(prev())->results()[sn]), std::move(results()[sn]));
       prev()->eliminate();
    } else {
@@ -453,7 +452,7 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_call *insn) {
          if (RSN_UNLIKELY(as<insn_ret>(bbmap[bb->sn]->rear())->results().size() != results().size()))
             insn_oops::make(bbmap[bb->sn]->rear());
          else
-         for (std::size_t sn = 0, size = results().size(); sn < size; ++sn)
+         for (std::size_t sn = 0; sn < results().size(); ++sn)
             insn_mov::make(bbmap[bb->sn]->rear(), std::move(as<insn_ret>(bbmap[bb->sn]->rear())->results()[sn]), results()[sn]);
          insn_jmp::make(bbmap[bb->sn]->rear(), owner());
          bbmap[bb->sn]->rear()->eliminate();
