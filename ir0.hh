@@ -167,12 +167,6 @@ namespace rsn::opt {
       void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%08X[...]", sn, (unsigned)id.first); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
-   public: // extras
-      struct {
-      # define RSN_OPT_EXTRA_PROC
-         # include "ir0-extra.tcc"
-      # undef RSN_OPT_EXTRA_PROC
-      } temp;
    };
    template<> RSN_INLINE inline bool operand::type_check<proc>() const noexcept { return kind == _proc; }
 
@@ -224,6 +218,8 @@ namespace rsn::opt {
    class vreg final: public operand { // virtual register of "infinite" width
    public: // construction/destruction
       RSN_INLINE RSN_NODISCARD static auto make() { return lib::smart_ptr<vreg>::make(); }
+   public: // miscellaneous
+      std::size_t sn;
    private: // implementation helpers
       RSN_INLINE explicit vreg() noexcept: operand{_reg} {}
       RSN_INLINE explicit vreg(smart_tag) noexcept: vreg{} {}
@@ -236,12 +232,6 @@ namespace rsn::opt {
       void dump_ref() const noexcept override { std::fprintf(stderr, "R%u", sn); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
-   public: // extras
-      struct {
-      # define RSN_OPT_EXTRA_VREG
-         # include "ir0-extra.tcc"
-      # undef RSN_OPT_EXTRA_VREG
-      } temp;
    };
    template<> RSN_INLINE inline bool operand::type_check<vreg>() const noexcept { return kind == _reg; }
 
@@ -252,6 +242,8 @@ namespace rsn::opt {
    public: // construction
       static auto make(proc *owner) { return new bblock(owner); } // construct and attach to the specified owner procedure at the end
       static auto make(bblock *next) { return new bblock(next); } // construct and attach to the owner procedure before the specified sibling basic block
+   public: // miscellaneous
+      std::size_t sn;
    private: // implementation helpers
       RSN_INLINE explicit bblock(proc *owner) noexcept: collection_item_mixin(owner) {}
       RSN_INLINE explicit bblock(bblock *next) noexcept: collection_item_mixin(next) {}
@@ -265,12 +257,6 @@ namespace rsn::opt {
       void dump_ref() const noexcept { std::fprintf(stderr, "L%u", sn); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
-   public: // extras
-      struct {
-      # define RSN_OPT_EXTRA_BBLOCK
-         # include "ir0-extra.tcc"
-      # undef RSN_OPT_EXTRA_BBLOCK
-      } temp;
    };
    RSN_NOINLINE inline proc::~proc() = default;
 
@@ -298,7 +284,7 @@ namespace rsn::opt {
       RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                            { return _targets; }
       RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                { return _targets; }
    public: // miscellaneous
-      RSN_INLINE virtual bool simplify() { return {}; } // constant folding, algebraic simplification, and canonicalization
+      RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification, and canonicalization
    private: // internal representation
       const unsigned kind;
    protected:
@@ -309,12 +295,6 @@ namespace rsn::opt {
    public: // debugging
       virtual void dump() const noexcept = 0;
    # endif
-   public: // extras
-      struct {
-      # define RSN_OPT_EXTRA_INSN
-         # include "ir0-extra.tcc"
-      # undef RSN_OPT_EXTRA_INSN
-      } temp;
    };
    RSN_NOINLINE inline bblock::~bblock() = default;
 
