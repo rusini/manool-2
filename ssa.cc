@@ -87,6 +87,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          if (RSN_UNLIKELY(!changed)) return;
       }
    }
+
    {  std::vector<std::vector<bblock *>> dom_front(bb_count);
    // Compute Dominance Frontiers //////////////////////////////////////////////////////////////////
       {  std::vector<std::vector<signed char>> dom_front_m(bb_count, std::vector<signed char>(bb_count));
@@ -108,6 +109,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
          if (RSN_UNLIKELY(!is<insn_phi>(in))) for (const auto &output: in->outputs()) place(place, bb, output);
    }
+
    // Rename Virtual Registers /////////////////////////////////////////////////////////////////////
    {  std::vector<vreg *> vr_map(vr_count);
       std::vector<std::size_t> phi_arg_index(bb_count);
@@ -115,34 +117,20 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       const auto traverse = [&](auto traverse, bblock *bb) RSN_NOINLINE{
          if (RSN_UNLIKELY(visited[bb->sn])) return;
          visited[bb->sn] = true;
-         // stack to restore VR mapping at the end
-         lib::small_vec<std::pair<lib::smart_ptr<vreg>, vreg *>> stack(
-         [bb]() noexcept RSN_INLINE{
-            lib::small_vec<std::pair<lib::smart_ptr<vreg>, vreg *>>::size_type count = 0;
-            {  auto in = bb->head();
-               for (; is<insn_phi>(in); in = in->next()) {
-                  ++count;
-               }
-               for (; in; in = in->next()) {
-                  for (auto &input: in->inputs()) if (is<vreg>(input)) ++count;
-                  count += in->outputs().size();
-               }
-            }
-            return count;
-         }() );
+         std::vector<std::pair<std::size_t, vreg *>> stack;
          auto in = bb->head();
          // rewrite phi destinations
          for (; is<insn_phi>(in); in = in->next()) {
-            stack.push_back({std::move(as<insn_phi>(in)->dest()), vr_map[as<insn_phi>(in)->dest()->sn]}),
-               as<insn_phi>(in)->dest() = vreg::make(), vr_map[stack.back().first->sn] = as<insn_phi>(in)->dest();
+            stack.push_back({as<insn_phi>(in)->dest()->sn, vr_map[as<insn_phi>(in)->dest()->sn]}),
+               vr_map[stack.back().first] = as<insn_phi>(in)->dest() = vreg::make();
          }
          // rewrite normal instructions
          for (; in; in = in->next()) {
             for (auto &input: in->inputs())
                if (is<vreg>(input)) input = vr_map[as<vreg>(input)->sn];
             for (auto &output: in->outputs())
-               stack.push_back({std::move(output), vr_map[output->sn]}),
-                  output = vreg::make(), vr_map[stack.back().first->sn] = output;
+               stack.push_back({output->sn, vr_map[output->sn]}),
+                  vr_map[stack.back().first] = output = vreg::make();
          }
          // process successors
          for (auto _bb: succs[bb->sn]) {
@@ -154,15 +142,13 @@ void rsn::opt::transform_to_ssa(proc *pc) {
             traverse(traverse, _bb);
          }
          // restore VR mapping
-         while (!stack.empty())
-            vr_map[stack.back().first->sn] = stack.back().second, stack.pop_back();
+         for (; !stack.empty(); stack.pop_back())
+            vr_map[stack.back().first] = stack.back().second;
       };
       // initialization and start
-      for (auto bb = pc->head(); bb; bb = bb->next()) {
-         for (auto in = bb->head(); in; in = in->next()) {
-            for (const auto &input: in->inputs()) if (is<vreg>(input)) vr_map[as<vreg>(input)->sn] = as<vreg>(input);
-            for (const auto &output: in->outputs()) vr_map[output->sn] = output;
-         }
+      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next()) {
+         for (const auto &input: in->inputs()) if (is<vreg>(input)) vr_map[as<vreg>(input)->sn] = as<vreg>(input);
+         for (const auto &output: in->outputs()) vr_map[output->sn] = output;
       }
       traverse(traverse, pc->head());
    }
