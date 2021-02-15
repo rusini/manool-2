@@ -20,7 +20,7 @@ namespace rsn::opt { void transform_to_ssa(proc *); }
 */
 void rsn::opt::transform_to_ssa(proc *pc) {
    std::size_t bb_count = 0, vr_count = 0;
-   // Numerate BBs and VRs /////////////////////////////////////////////////////////////////////////
+   // Number BBs and VRs ///////////////////////////////////////////////////////////////////////////
    for (auto bb = pc->head(); bb; bb = bb->next()) {
       bb->sn = bb_count++;
       for (auto in = bb->head(); in; in = in->next()) {
@@ -42,23 +42,23 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          for (const auto &target: bb->rear()->targets())
          if (preds[target->sn].empty() || RSN_LIKELY(preds[target->sn].back() != bb))
             preds[target->sn].push_back(bb), succs[bb->sn].push_back(target);
-         for (auto succ: succs[bb->sn]) traverse(traverse, succ);
+         for (auto _bb: succs[bb->sn]) traverse(traverse, _bb);
       };
       traverse(traverse, pc->head());
    }
 
    std::vector<bblock *> idom(bb_count);
    // Build Dominator Tree /////////////////////////////////////////////////////////////////////////
-   {  std::vector<bblock *> postord;
-      std::vector<long> postord_num(bb_count);
-      // determine postorder ordering and numbering for the control-flow graph
-      {  decltype(postord_num)::value_type num = {};
+   {  std::vector<bblock *> postdfs;
+      std::vector<long> postdfs_num(bb_count);
+      // determine postorder DFS ordering and numbering for the CFG
+      {  decltype(postdfs_num)::value_type num = {};
          std::vector<signed char> visited(bb_count);
-         auto traverse = [&](auto &traverse, bblock *bb) noexcept RSN_NOINLINE{
+         auto traverse = [&](auto &traverse, bblock *bb) RSN_NOINLINE{
             if (RSN_UNLIKELY(visited[bb->sn])) return;
             visited[bb->sn] = true;
             for (auto _bb: succs[bb->sn]) traverse(traverse, _bb);
-            postord.push_back(bb), postord_num[bb->sn] = num++;
+            postdfs.push_back(bb), postdfs_num[bb->sn] = num++;
          };
          traverse(traverse, pc->head());
       }
@@ -66,8 +66,8 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       const auto intersect = [&](bblock *lhs, bblock *rhs) noexcept RSN_INLINE{
          auto finger_lhs = lhs, finger_rhs = rhs;
          while (finger_lhs != finger_rhs) {
-            while (postord_num[finger_lhs->sn] < postord_num[finger_rhs->sn]) finger_lhs = idom[finger_lhs->sn];
-            while (postord_num[finger_rhs->sn] < postord_num[finger_lhs->sn]) finger_rhs = idom[finger_rhs->sn];
+            while (postdfs_num[finger_lhs->sn] < postdfs_num[finger_rhs->sn]) finger_lhs = idom[finger_lhs->sn];
+            while (postdfs_num[finger_rhs->sn] < postdfs_num[finger_lhs->sn]) finger_rhs = idom[finger_rhs->sn];
          }
          return finger_lhs;
       };
@@ -76,13 +76,13 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       // state transition until a fixed point is reached
       for (;;) {
          bool changed = false;
-         for (auto bb: lib::range_ref(postord).drop_first().reverse()) {
-            auto temp = lib::range_ref(preds[bb->sn]).first();
+         for (auto bb: lib::range_ref(postdfs).drop_first().reverse()) {
+            auto new_idom = lib::range_ref(preds[bb->sn]).first();
             for (auto pred: lib::range_ref(preds[bb->sn]).drop_first())
-               if (RSN_LIKELY(idom[pred->sn])) temp = intersect(pred, temp);
-            changed |= idom[bb->sn] != temp, idom[bb->sn] = temp;
+               if (RSN_LIKELY(idom[pred->sn])) new_idom = intersect(pred, new_idom);
+            changed |= idom[bb->sn] != new_idom, idom[bb->sn] = new_idom;
          }
-         if (RSN_UNLIKELY(!changed)) return;
+         if (RSN_UNLIKELY(!changed)) break;
       }
    }
 
