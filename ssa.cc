@@ -76,7 +76,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       // state transition until a fixed point is reached
       for (;;) {
          bool changed = false;
-         for (auto bb: lib::range_ref(postdfs).drop_first().reverse()) {
+         for (auto bb: lib::range_ref(postdfs).drop_last().reverse()) {
             auto new_idom = lib::range_ref(preds[bb->sn]).first();
             for (auto pred: lib::range_ref(preds[bb->sn]).drop_first())
                if (RSN_LIKELY(idom[pred->sn])) new_idom = intersect(pred, new_idom);
@@ -91,10 +91,10 @@ void rsn::opt::transform_to_ssa(proc *pc) {
    {  std::vector<std::vector<bool>> dom_front_s(bb_count, std::vector<bool>(bb_count));
       for (auto bb = pc->head(); bb; bb = bb->next())
       if (RSN_UNLIKELY(preds[bb->sn].size() > 1))
-      for (auto _bb: preds[bb->sn])
-      for (; _bb != idom[bb->sn]; _bb = idom[_bb->sn])
-      if (RSN_UNLIKELY(!dom_front_s[_bb->sn][bb->sn]))
-         dom_front_s[_bb->sn][bb->sn] = true, dom_front[_bb->sn].push_back(bb);
+      for (auto runner: preds[bb->sn])
+      for (; runner != idom[bb->sn]; runner = idom[runner->sn])
+      if (RSN_UNLIKELY(!dom_front_s[runner->sn][bb->sn]))
+         dom_front_s[runner->sn][bb->sn] = true, dom_front[runner->sn].push_back(bb);
    }
 
    idom.clear(), idom.shrink_to_fit();
@@ -114,7 +114,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
    dom_front.clear(), dom_front.shrink_to_fit();
    preds.clear(), preds.shrink_to_fit();
 
-   // Rename Virtual Registers /////////////////////////////////////////////////////////////////////
+   // Rename VRs ///////////////////////////////////////////////////////////////////////////////////
    {  std::vector<vreg *> vr_map(vr_count);
       std::vector<std::size_t> phi_arg_index(bb_count);
       std::vector<signed char> visited(bb_count);
@@ -145,7 +145,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
             // recur into the successor
             traverse(traverse, _bb);
          }
-         // restore virtual register mapping
+         // restore VR mapping
          for (; !stack.empty(); stack.pop_back())
             vr_map[stack.back().first] = stack.back().second;
       };

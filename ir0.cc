@@ -20,7 +20,7 @@
 using namespace rsn::opt;
 
 void proc::dump() const noexcept {
-   std::fprintf(stderr, "P%u = proc $0x%08X[0x%016llX%016llX] as\n", sn, (unsigned)id.first, id.second, id.first);
+   std::fprintf(stderr, "P%u = proc $0x%08X[0x%016llX%016llX] as\n", node::sn, (unsigned)id.first, id.second, id.first);
    {  std::unordered_set<bblock *> bblocks;
       for (auto bb: all(this)) for (auto in: all(bb)) {
          for (auto target: in->targets()) if (target->owner() != this) bblocks.insert(target);
@@ -28,11 +28,11 @@ void proc::dump() const noexcept {
       for (auto it: bblocks) log << "  ; Error: Reference to foreign bblock " << it << '\n';
    }
    for (auto it: all(this)) it->dump();
-   std::fprintf(stderr, "end proc P%u\n\n", sn);
+   std::fprintf(stderr, "end proc P%u\n\n", node::sn);
 }
 
 void bblock::dump() const noexcept {
-   std::fprintf(stderr, "L%u:\n", sn);
+   std::fprintf(stderr, "L%u:\n", node::sn);
    for (auto insn: all(this)) std::fputs("    ", stderr), insn->dump(), std::fputc('\n', stderr);
 }
 

@@ -120,9 +120,9 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { std::fprintf(stderr, "N%u = abs #%lld[0x%llX]\n\n", sn, (long long)val, val); }
+      void dump() const noexcept override { std::fprintf(stderr, "N%u = abs #%lld[0x%llX]\n\n", node::sn, (long long)val, val); }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "N%u#%lld[0x%llX]", sn, (long long)val, val); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "N%u#%lld[0x%llX]", node::sn, (long long)val, val); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
@@ -143,9 +143,9 @@ namespace rsn::opt {
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override
-         { std::fprintf(stderr, "X%u = extern $0x%08X[$0x%016llX%016llX]\n\n", sn, (unsigned)id.first, id.second, id.first); }
+         { std::fprintf(stderr, "X%u = extern $0x%08X[$0x%016llX%016llX]\n\n", node::sn, (unsigned)id.first, id.second, id.first); }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "X%u$0x%08X[...]", sn, (unsigned)id.first); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "X%u$0x%08X[...]", node::sn, (unsigned)id.first); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
@@ -164,7 +164,7 @@ namespace rsn::opt {
    public: // debugging
       void dump() const noexcept override;
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%08X[...]", sn, (unsigned)id.first); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "P%u$0x%08X[...]", node::sn, (unsigned)id.first); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
@@ -183,12 +183,12 @@ namespace rsn::opt {
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override {
-         std::fprintf(stderr, "D%u = data D%u$0x%08X[...] as\n", sn, (unsigned)id.first, id.second, id.first);
+         std::fprintf(stderr, "D%u = data D%u$0x%08X[...] as\n", node::sn, (unsigned)id.first, id.second, id.first);
          for (auto &&it: values) log << "    " << it << '\n';
-         std::fprintf(stderr, "end data D%u\n\n", sn);
+         std::fprintf(stderr, "end data D%u\n\n", node::sn);
       }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "D%u$0x%08X[...]", sn, (unsigned)id.first); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "D%u$0x%08X[...]", node::sn, (unsigned)id.first); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
@@ -207,9 +207,9 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { std::fprintf(stderr, "A%u = rel +", sn), log << base, std::fprintf(stderr, "%+lld[0x%llX]\n\n", (long long)add, add); }
+      void dump() const noexcept override { std::fprintf(stderr, "A%u = rel +", node::sn), log << base, std::fprintf(stderr, "%+lld[0x%llX]\n\n", (long long)add, add); }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "A%u+", sn), log << base, std::fprintf(stderr, "%+lld[0x%llX]", add, add); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "A%u+", node::sn), log << base, std::fprintf(stderr, "%+lld[0x%llX]", add, add); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
@@ -227,9 +227,9 @@ namespace rsn::opt {
       template<typename> friend class lib::smart_ptr;
    # if RSN_USE_DEBUG
    public: // debugging
-      void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg\n\n", sn); }
+      void dump() const noexcept override { std::fprintf(stderr, "R%u = vreg\n\n", node::sn); }
    private:
-      void dump_ref() const noexcept override { std::fprintf(stderr, "R%u", sn); }
+      void dump_ref() const noexcept override { std::fprintf(stderr, "R%u", node::sn); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };
@@ -254,7 +254,7 @@ namespace rsn::opt {
    public: // debugging
       void dump() const noexcept;
    private:
-      void dump_ref() const noexcept { std::fprintf(stderr, "L%u", sn); }
+      void dump_ref() const noexcept { std::fprintf(stderr, "L%u", node::sn); }
       friend decltype(log);
    # endif // # if RSN_USE_DEBUG
    };

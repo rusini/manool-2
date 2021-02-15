@@ -384,6 +384,8 @@ RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
    const decltype(insn->params())  _params  = insn->params();  auto params  = [&_params]() noexcept RSN_INLINE->auto &  { return _params; };
    const decltype(insn->results()) _results = insn->results(); auto results = [&_results]() noexcept RSN_INLINE->auto & { return _results; };
 
+# if 0
+
    if (RSN_LIKELY(!is<proc>(dest()))) return false;
    auto pc = as<proc>(dest());
 
@@ -458,6 +460,8 @@ RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
          bbmap[bb->sn]->rear()->eliminate();
       }
    }
+
+# endif
 
    return eliminate(), true;
 }
