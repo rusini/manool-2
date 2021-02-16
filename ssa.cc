@@ -156,4 +156,17 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       }
       traverse(traverse, pc->head());
    }
+
+   // Pruning SSA: DCE for useless phis ////////////////////////////////////////////////////////////
+   for (;;) {
+      std::vector<signed char> used(vr_count);
+      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
+         for (const auto &input: in->inputs()) if (is<vreg>(input)) used[as<vreg>(input)->sn] = true;
+      bool changed = false;
+      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in: lib::all(bb)) {
+         if (RSN_UNLIKELY(!is<insn_phi>(in))) break;
+         if (RSN_UNLIKELY(!used[as<insn_phi>(in)->dest()->sn])) changed = (in->eliminate(), true);
+      }
+      if (RSN_UNLIKELY(!changed)) break;
+   }
 }
