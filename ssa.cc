@@ -94,7 +94,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       for (auto runner: preds[bb->sn])
       for (; runner != idom[bb->sn]; runner = idom[runner->sn])
       if (RSN_UNLIKELY(!dom_front_s[runner->sn][bb->sn]))
-         dom_front_s[runner->sn][bb->sn] = true, dom_front[runner->sn].push_back(bb);
+         dom_front_s[runner->sn][bb->sn] = (dom_front[runner->sn].push_back(bb), true);
    }
 
    idom.clear(), idom.shrink_to_fit();
@@ -103,7 +103,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
    {  std::vector<std::vector<bool>> placed(bb_count, std::vector<bool>(vr_count));
       auto place = [&](auto &place, bblock *bb, vreg *vr)->void RSN_NOINLINE{
          for (auto _bb: dom_front[bb->sn]) if (RSN_UNLIKELY(!placed[_bb->sn][vr->sn])) {
-            insn_phi::make(_bb->head(), std::vector<lib::smart_ptr<operand>>(preds[_bb->sn].size(), vr), vr), placed[_bb->sn][vr->sn] = true;
+            placed[_bb->sn][vr->sn] = (insn_phi::make(_bb->head(), std::vector<lib::smart_ptr<operand>>(preds[_bb->sn].size(), vr), vr), true);
             place(place, _bb, vr);
          }
       };
