@@ -42,7 +42,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          for (const auto &target: bb->rear()->targets())
          if (preds[target->sn].empty() || RSN_LIKELY(preds[target->sn].back() != bb))
             preds[target->sn].push_back(bb), succs[bb->sn].push_back(target);
-         for (auto _bb: succs[bb->sn]) traverse(traverse, _bb);
+         for (auto succ: succs[bb->sn]) traverse(traverse, succ);
       };
       traverse(traverse, pc->head());
    }
@@ -57,7 +57,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          auto traverse = [&](auto &traverse, bblock *bb) RSN_NOINLINE{
             if (RSN_UNLIKELY(visited[bb->sn])) return;
             visited[bb->sn] = true;
-            for (auto _bb: succs[bb->sn]) traverse(traverse, _bb);
+            for (auto succ: succs[bb->sn]) traverse(traverse, succ);
             postdfs.push_back(bb), postdfs_num[bb->sn] = num++;
          };
          traverse(traverse, pc->head());
@@ -79,7 +79,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          for (auto bb: lib::range_ref(postdfs).drop_last().reverse()) {
             auto new_idom = lib::range_ref(preds[bb->sn]).first();
             for (auto pred: lib::range_ref(preds[bb->sn]).drop_first())
-               if (RSN_LIKELY(idom[pred->sn])) new_idom = intersect(pred, new_idom);
+               if (RSN_LIKELY(idom[pred->sn])) new_idom = intersect(new_idom, pred);
             changed |= idom[bb->sn] != new_idom, idom[bb->sn] = new_idom;
          }
          if (RSN_UNLIKELY(!changed)) break;
@@ -88,13 +88,13 @@ void rsn::opt::transform_to_ssa(proc *pc) {
 
    std::vector<std::vector<bblock *>> dom_front(bb_count);
    // Compute Dominance Frontiers //////////////////////////////////////////////////////////////////
-   {  std::vector<std::vector<bool>> dom_front_s(bb_count, std::vector<bool>(bb_count));
+   {  std::vector<std::vector<bool>> _dom_front(bb_count, std::vector<bool>(bb_count));
       for (auto bb = pc->head(); bb; bb = bb->next())
       if (RSN_UNLIKELY(preds[bb->sn].size() > 1))
       for (auto runner: preds[bb->sn])
       for (; runner != idom[bb->sn]; runner = idom[runner->sn])
-      if (RSN_UNLIKELY(!dom_front_s[runner->sn][bb->sn]))
-         dom_front_s[runner->sn][bb->sn] = (dom_front[runner->sn].push_back(bb), true);
+      if (RSN_UNLIKELY(!_dom_front[runner->sn][bb->sn]))
+         _dom_front[runner->sn][bb->sn] = (dom_front[runner->sn].push_back(bb), true);
    }
 
    idom.clear(), idom.shrink_to_fit();
@@ -137,13 +137,13 @@ void rsn::opt::transform_to_ssa(proc *pc) {
                   vr_map[stack.back().first] = output = vreg::make();
          }
          // process successors
-         for (auto _bb: succs[bb->sn]) {
+         for (auto succ: succs[bb->sn]) {
             // rewrite phi arguments
-            for (auto in = _bb->head(); is<insn_phi>(in); in = in->next())
-               as<insn_phi>(in)->args()[phi_arg_index[_bb->sn]] = vr_map[as<vreg>(as<insn_phi>(in)->args()[phi_arg_index[_bb->sn]])->sn];
-            ++phi_arg_index[_bb->sn];
+            for (auto in = succ->head(); is<insn_phi>(in); in = in->next())
+               as<insn_phi>(in)->args()[phi_arg_index[succ->sn]] = vr_map[as<vreg>(as<insn_phi>(in)->args()[phi_arg_index[succ->sn]])->sn];
+            ++phi_arg_index[succ->sn];
             // recur into the successor
-            traverse(traverse, _bb);
+            traverse(traverse, succ);
          }
          // restore VR mapping
          for (; !stack.empty(); stack.pop_back())
