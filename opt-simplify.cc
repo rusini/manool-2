@@ -384,26 +384,23 @@ RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
    const decltype(insn->params())  _params  = insn->params();  auto params  = [&_params]() noexcept RSN_INLINE->auto &  { return _params; };
    const decltype(insn->results()) _results = insn->results(); auto results = [&_results]() noexcept RSN_INLINE->auto & { return _results; };
 
-# if 0
-
    if (RSN_LIKELY(!is<proc>(dest()))) return false;
    auto pc = as<proc>(dest());
 
    // temporary mappings
    auto bbmap = [&]() RSN_INLINE{
-      lib::small_vec<bblock *, 510>::size_type count = 0;
+      std::vector<bblock *>::size_type count = 0;
       for (auto bb = pc->head(); bb; bb = bb->next()) ++count;
-      lib::small_vec<bblock *, 510> res(count);
-      res.extend(count);
+      std::vector<bblock *> res(count);
       return res;
    }();
    auto vrmap = [&]() RSN_INLINE{
-      lib::small_vec<lib::smart_ptr<vreg>, 510>::size_type count = 0;
+      std::vector<lib::smart_ptr<vreg>>::size_type count = 0;
       for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next()) {
          for (auto &input: in->inputs()) if (is<vreg>(input)) if (RSN_UNLIKELY(as<vreg>(input)->sn >= count)) count = as<vreg>(input)->sn + 1;
          for (auto &output: in->outputs()) if (RSN_UNLIKELY(output->sn >= count)) count = output->sn + 1;
       }
-      lib::small_vec<lib::smart_ptr<vreg>, 510> res(count);
+      std::vector<lib::smart_ptr<vreg>> res(count);
       for (; count; --count) res.emplace_back(vreg::make());
       return res;
    }();
@@ -460,8 +457,6 @@ RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
          bbmap[bb->sn]->rear()->eliminate();
       }
    }
-
-# endif
 
    return eliminate(), true;
 }

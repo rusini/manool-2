@@ -414,7 +414,7 @@ namespace rsn::lib {
          { return _end == _begin; }
       RSN_INLINE size_type size() const noexcept(noexcept(_end - _begin))
          { return _end - _begin; }
-      RSN_INLINE reference operator[](size_type sn) noexcept(noexcept(_begin[sn]))
+      RSN_INLINE reference operator[](size_type sn) const noexcept(noexcept(_begin[sn]))
          { return _begin[sn]; }
    public:
       RSN_INLINE auto begin() const noexcept { return _begin; }
