@@ -80,6 +80,8 @@ namespace rsn::lib {
    public:
       RSN_INLINE smart_ptr(Obj *rhs) noexcept: rep(rhs) { retain(); }
       RSN_INLINE operator Obj *() const & noexcept { return rep; }
+      operator Obj *() && = delete;
+      operator Obj *() const && = delete;
       RSN_INLINE Obj &operator*() const noexcept { return *rep; }
       RSN_INLINE Obj *operator->() const noexcept { return rep; }
    private: // internal representation
@@ -99,7 +101,6 @@ namespace rsn::lib {
       { return is<Dest>((Src *)src); }
    template<typename Dest, typename Src> RSN_INLINE inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, Dest *> as(const smart_ptr<Src> &src) noexcept
       { return as<Dest>((Src *)src); }
-   // TODO: disable rval?
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, smart_ptr<Dest>>
       as_smart(const smart_ptr<Src> &src) noexcept { return as<Dest>(src); }
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, smart_ptr<Dest>>

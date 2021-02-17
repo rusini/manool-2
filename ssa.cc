@@ -157,7 +157,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       traverse(traverse, pc->head());
    }
 
-   // Pruning SSA: DCE for useless phis ////////////////////////////////////////////////////////////
+   // Prune SSA: DCE for Useless Phis //////////////////////////////////////////////////////////////
    for (;;) {
       std::vector<signed char> used(vr_count);
       for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
