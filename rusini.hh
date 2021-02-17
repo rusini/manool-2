@@ -80,7 +80,6 @@ namespace rsn::lib {
    public:
       RSN_INLINE smart_ptr(Obj *rhs) noexcept: rep(rhs) { retain(); }
       RSN_INLINE operator Obj *() const & noexcept { return rep; }
-      operator Obj *() && = delete;
       operator Obj *() const && = delete;
       RSN_INLINE Obj &operator*() const noexcept { return *rep; }
       RSN_INLINE Obj *operator->() const noexcept { return rep; }
