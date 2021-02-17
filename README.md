@@ -54,7 +54,10 @@ a compiler middle-end.
 
     auto pc = opt::proc::make({1, 0}); // iterative version of Factorial
     auto r_arg = opt::vreg::make(), r_res = opt::vreg::make();
-    auto b0 = opt::bblock::make(pc), b1 = opt::bblock::make(pc), b2 = opt::bblock::make(pc), b3 = opt::bblock::make(pc);
+    auto b0 = opt::bblock::make(pc),
+         b1 = opt::bblock::make(pc),
+         b2 = opt::bblock::make(pc),
+         b3 = opt::bblock::make(pc);
 
     opt::insn_entry::make(b0, {r_arg});
     opt::insn_mov::make(b0, opt::abs::make(1), r_res);
