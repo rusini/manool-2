@@ -26,8 +26,7 @@ namespace rsn::opt {
 } // namespace rsn::opt
 
 
-namespace rsn::opt { static bool simplify(insn_binop *); }
-bool rsn::opt::insn_binop::simplify() { return opt::simplify(this); }
+namespace rsn::opt { static bool simplify(insn_binop *); bool rsn::opt::insn_binop::simplify() { return opt::simplify(this); } }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_binop *insn) {
    const auto eliminate = [insn]() noexcept RSN_INLINE -> void   { insn->eliminate(); };
@@ -329,8 +328,7 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_binop *insn) {
    }
 }
 
-namespace rsn::opt { static bool simplify(insn_br *); }
-bool rsn::opt::insn_br::simplify() { return opt::simplify(this); }
+namespace rsn::opt { static bool simplify(insn_br *); bool insn_br::simplify() { return opt::simplify(this); } }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_br *in) {
    const auto owner = [in]()RSN_INLINE{ return in->owner(); };
@@ -362,8 +360,7 @@ RSN_INLINE static inline bool rsn::opt::simplify(insn_br *in) {
    }
 }
 
-namespace rsn::opt { static bool simplify(insn_switch_br *); }
-bool rsn::opt::insn_switch_br::simplify() { return opt::simplify(this); }
+namespace rsn::opt { static bool simplify(insn_switch_br *); bool insn_switch_br::simplify() { return opt::simplify(this); } }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_switch_br *in) {
    if (!is<abs>(in->index())) return {};
