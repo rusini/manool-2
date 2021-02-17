@@ -1,4 +1,4 @@
-// ir.hh
+// ir.hh -- IR instructions
 
 /*    Copyright (C) 2020, 2021 Alexey Protasov (AKA Alex or rusini)
 
@@ -18,7 +18,8 @@
 
 namespace rsn::opt {
 
-   // IR Instructions //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+   enum insn::kind: int
+      { _entry = -1, _ret = -2, _call = -3, _mov = +4, _load = +5, _store = -6, _binop = +7, _jmp = -8, _br = -9, _switch_br = -10, _oops = -11, _phi = +12 };
 
    class insn_entry final: public insn {
    public: // construction/destruction
@@ -39,23 +40,21 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_entry( Loc loc,
          std::vector<lib::smart_ptr<vreg>> &&params ) noexcept
-         : insn(loc, kind), _outputs(std::move(params)) {
+         : insn(_entry, loc), _outputs(std::move(params)) {
          _outputs.shrink_to_fit();
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_entry( Loc loc,
          const decltype(_outputs) &outputs )
-         : insn(loc, kind), _outputs(outputs) {
+         : insn(_entry, loc), _outputs(outputs) {
          insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
-   public:
-      static constexpr unsigned kind = 0x09FACCF1;
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { log << "entry" << (params().empty() ? "" : " -> ") << params(); }
    # endif
    };
-   template<> RSN_INLINE inline bool insn::type_check<insn_entry>() const noexcept { return kind == insn_entry::kind; }
+   template<> RSN_INLINE inline bool insn::type_check<insn_entry>() const noexcept { return kind == _entry; }
 
    class insn_ret final: public insn {
    public: // construction/destruction
@@ -76,23 +75,21 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_ret( Loc loc,
          std::vector<lib::smart_ptr<operand>> &&results ) noexcept
-         : insn(loc, kind), _inputs(std::move(results)) {
+         : insn(_ret, loc), _inputs(std::move(results)) {
          _inputs.shrink_to_fit();
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_ret( Loc loc,
          const decltype(_inputs) &inputs )
-         : insn(loc, kind), _inputs(inputs) {
+         : insn(_ret, loc), _inputs(inputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
-   public:
-      static constexpr unsigned kind = 0x02DDBD1C;
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { log << "ret" << (results().empty() ? "" : " ") << results(); }
    # endif
    };
-   template<> RSN_INLINE inline bool insn::type_check<insn_ret>() const noexcept { return kind == insn_ret::kind; }
+   template<> RSN_INLINE inline bool insn::type_check<insn_ret>() const noexcept { return kind == _ret; }
 
    class insn_call final: public insn {
    public: // construction/destruction
@@ -120,24 +117,22 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_call( Loc loc,
          lib::smart_ptr<operand> &&dest, std::vector<lib::smart_ptr<operand>> &&params, std::vector<lib::smart_ptr<vreg>> &&results ) noexcept
-         : insn(loc, kind), _inputs(std::move(params)), _outputs(std::move(results)) {
+         : insn(_call, loc), _inputs(std::move(params)), _outputs(std::move(results)) {
          _inputs.emplace_back(std::move(dest));
          _inputs.shrink_to_fit(), _outputs.shrink_to_fit();
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_call( Loc loc,
          const decltype(_inputs) &inputs, const decltype(_outputs) &outputs )
-         : insn(loc, kind), _inputs(inputs), _outputs(outputs) {
+         : insn(_call, loc), _inputs(inputs), _outputs(outputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
-   public:
-      static constexpr unsigned kind = 0xB76F98AD;
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { log << "call " << dest() << " ( " << params() << " )" << (results().empty() ? "" : " -> ") << results(); }
    # endif
    };
-   template<> RSN_INLINE inline bool insn::type_check<insn_call>() const noexcept { return kind == insn_call::kind; }
+   template<> RSN_INLINE inline bool insn::type_check<insn_call>() const noexcept { return kind == _call; }
 
    class insn_mov final: public insn {
    public: // construction/destruction
@@ -161,22 +156,20 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_mov( Loc loc,
          lib::smart_ptr<operand> &&src, lib::smart_ptr<vreg> &&dest ) noexcept
-         : insn(loc, kind), _inputs{std::move(src)}, _outputs{std::move(dest)} {
+         : insn(_mov, loc), _inputs{std::move(src)}, _outputs{std::move(dest)} {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_mov( Loc loc,
          const decltype(_inputs) &inputs, const decltype(_outputs) &outputs ) noexcept
-         : insn(loc, kind), _inputs(inputs), _outputs(outputs) {
+         : insn(_mov, loc), _inputs(inputs), _outputs(outputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
-   public:
-      static constexpr unsigned kind = 0x89D0A844;
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { log << "mov " << src() << " -> " << dest(); }
    # endif
    };
-   template<> RSN_INLINE inline bool insn::type_check<insn_mov>() const noexcept { return kind == insn_mov::kind; }
+   template<> RSN_INLINE inline bool insn::type_check<insn_mov>() const noexcept { return kind == _mov; }
 
    class insn_load final: public insn {
    public: // construction/destruction
@@ -200,12 +193,12 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_load( Loc loc,
          lib::smart_ptr<operand> &&src, lib::smart_ptr<vreg> &&dest ) noexcept
-         : insn(loc), _inputs{std::move(src)}, _outputs{std::move(dest)} {
+         : insn(_load, loc), _inputs{std::move(src)}, _outputs{std::move(dest)} {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_load( Loc loc,
          const decltype(_inputs) &inputs, const decltype(_outputs) &outputs ) noexcept
-         : insn(loc), _inputs(inputs), _outputs(outputs) {
+         : insn(_load, loc), _inputs(inputs), _outputs(outputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
    # if RSN_USE_DEBUG
@@ -213,6 +206,7 @@ namespace rsn::opt {
       void dump() const noexcept override { log << "load " << src() << " -> " << dest(); }
    # endif
    };
+   template<> RSN_INLINE inline bool insn::type_check<insn_load>() const noexcept { return kind == _load; }
 
    class insn_store final: public insn {
    public: // construction/destruction
@@ -235,12 +229,12 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_store( Loc loc,
          lib::smart_ptr<operand> &&src, lib::smart_ptr<operand> &&dest ) noexcept
-         : insn(loc), _inputs{std::move(src), std::move(dest)} {
+         : insn(_store, loc), _inputs{std::move(src), std::move(dest)} {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_store( Loc loc,
          const decltype(_inputs) &inputs ) noexcept
-         : insn(loc), _inputs(inputs) {
+         : insn(_store, loc), _inputs(inputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()};
       }
    # if RSN_USE_DEBUG
@@ -248,6 +242,7 @@ namespace rsn::opt {
       void dump() const noexcept override { log << "store " << src() << ", " << dest(); }
    # endif
    };
+   template<> RSN_INLINE inline bool insn::type_check<insn_store>() const noexcept { return kind == _store; }
 
    class insn_binop final: public insn {
    public: // public data members
@@ -288,12 +283,12 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
          lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs, lib::smart_ptr<vreg> &&dest ) noexcept
-         : insn(loc), op(op), _inputs{std::move(lhs), std::move(rhs)}, _outputs{std::move(dest)} {
+         : insn(_binop, loc), op(op), _inputs{std::move(lhs), std::move(rhs)}, _outputs{std::move(dest)} {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_binop( Loc loc, decltype(op) op,
          const decltype(_inputs) &inputs, const decltype(_outputs) &outputs ) noexcept
-         : insn(loc), op(op), _inputs(inputs), _outputs(outputs) {
+         : insn(_binop, loc), op(op), _inputs(inputs), _outputs(outputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
    # if RSN_USE_DEBUG
@@ -305,6 +300,7 @@ namespace rsn::opt {
       }
    # endif // # if RSN_USE_DEBUG
    };
+   template<> RSN_INLINE inline bool insn::type_check<insn_binop>() const noexcept { return kind == _binop; }
 
    class insn_jmp final: public insn {
    public: // construction/destruction
@@ -325,12 +321,12 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_jmp( Loc loc,
          bblock *&&dest ) noexcept
-         : insn(loc), _targets{std::move(dest)} {
+         : insn(_jmp, loc), _targets{std::move(dest)} {
          insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_jmp( Loc loc,
          const decltype(_targets) &targets ) noexcept
-         : insn(loc), _targets(targets) {
+         : insn(_jmp, loc), _targets(targets) {
          insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
    # if RSN_USE_DEBUG
@@ -338,6 +334,7 @@ namespace rsn::opt {
       void dump() const noexcept override { log << "jmp to " << dest(); }
    # endif
    };
+   template<> RSN_INLINE inline bool insn::type_check<insn_jmp>() const noexcept { return kind == _jmp; }
 
    class insn_br final: public insn {
    public: // public data members
@@ -384,16 +381,14 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
          lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs, bblock *&&dest1, bblock *&&dest2 )
-         : insn(loc, kind), op(op), _inputs{std::move(lhs), std::move(rhs)}, _targets{std::move(dest1), std::move(dest2)} {
+         : insn(_br, loc), op(op), _inputs{std::move(lhs), std::move(rhs)}, _targets{std::move(dest1), std::move(dest2)} {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_br( Loc loc, decltype(op) op,
          const decltype(_inputs) &inputs, const decltype(_targets) &targets ) noexcept
-         : insn(loc, kind), op(op), _inputs(inputs), _targets(targets) {
+         : insn(_br, loc), op(op), _inputs(inputs), _targets(targets) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
-   public:
-      static constexpr unsigned kind = 0x63390544;
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override {
@@ -403,7 +398,7 @@ namespace rsn::opt {
       }
    # endif // # if RSN_USE_DEBUG
    };
-   template<> RSN_INLINE inline bool insn::type_check<insn_br>() const noexcept { return kind == insn_br::kind; }
+   template<> RSN_INLINE inline bool insn::type_check<insn_br>() const noexcept { return kind == _br; }
 
    class insn_switch_br final: public insn {
    public: // construction/destruction
@@ -429,13 +424,13 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_switch_br( Loc loc,
          lib::smart_ptr<operand> &&index, std::vector<bblock *> &&dests )
-         : insn(loc), _inputs{std::move(index)}, _targets(std::move(dests)) {
+         : insn(_switch_br, loc), _inputs{std::move(index)}, _targets(std::move(dests)) {
          _targets.shrink_to_fit();
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_switch_br( Loc loc,
          const decltype(_inputs) &inputs, const decltype(_targets) &targets ) noexcept
-         : insn(loc), _inputs(inputs), _targets(targets) {
+         : insn(_switch_br, loc), _inputs(inputs), _targets(targets) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_targets = lib::range_ref{&*_targets.begin(), &*_targets.end()};
       }
    # if RSN_USE_DEBUG
@@ -443,6 +438,7 @@ namespace rsn::opt {
       void dump() const noexcept override { log << "br " << index() << " to ( " << dests() << " )"; }
    # endif
    };
+   template<> RSN_INLINE inline bool insn::type_check<insn_switch_br>() const noexcept { return kind == _switch_br; }
 
    class insn_oops final: public insn {
    public: // construction/destruction
@@ -455,13 +451,14 @@ namespace rsn::opt {
       insn_oops *clone(insn *next) const override { return new insn_oops(next); }
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_oops(Loc loc) noexcept
-         : insn(loc) {
+         : insn(_oops, loc) {
       }
    # if RSN_USE_DEBUG
    public: // debugging
       void dump() const noexcept override { log << "oops"; }
    # endif
    };
+   template<> RSN_INLINE inline bool insn::type_check<insn_oops>() const noexcept { return kind == _oops; }
 
    class insn_phi final: public insn {
    public: // construction/destruction
@@ -485,13 +482,13 @@ namespace rsn::opt {
    private: // implementation helpers
       template<typename Loc> RSN_INLINE explicit insn_phi( Loc loc,
          std::vector<lib::smart_ptr<operand>> &&args, lib::smart_ptr<vreg> &&dest ) noexcept
-         : insn(loc, 'phi'), _inputs(std::move(args)), _outputs{std::move(dest)} {
+         : insn(_phi, loc), _inputs(std::move(args)), _outputs{std::move(dest)} {
          _inputs.shrink_to_fit();
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
       template<typename Loc> RSN_INLINE explicit insn_phi( Loc loc,
          const decltype(_inputs) &inputs, const decltype(_outputs) &outputs ) noexcept
-         : insn(loc, 'phi'), _inputs(inputs), _outputs(outputs) {
+         : insn(_phi, loc), _inputs(inputs), _outputs(outputs) {
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
    # if RSN_USE_DEBUG
@@ -499,7 +496,7 @@ namespace rsn::opt {
       void dump() const noexcept override { log << "phi " << args() << " -> " << dest(); }
    # endif
    };
-   template<> RSN_INLINE inline bool insn::type_check<insn_phi>() const noexcept { return kind == 'phi'; }
+   template<> RSN_INLINE inline bool insn::type_check<insn_phi>() const noexcept { return kind == _phi; }
 
 } // namespace rsn::opt
 

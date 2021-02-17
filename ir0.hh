@@ -84,8 +84,8 @@ namespace rsn::opt {
       virtual ~operand() = 0;
       friend class imm;  // descendant
       friend class vreg; // ditto
-   private:
-      template<typename> bool type_check() const noexcept = delete; // fast (and trivial) RTTI
+   private: // fast (and trivial) RTTI
+      template<typename> bool type_check() const noexcept = delete;
       template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept;
    # if RSN_USE_DEBUG
    public: // debugging
@@ -262,10 +262,12 @@ namespace rsn::opt {
 
    class insn: protected aux::node, // IR instruction
       public lib::collection_item_mixin<insn, bblock> {
+   protected:
+      enum kind: int;
    protected: // constructors/destructors
-      RSN_INLINE explicit insn(bblock *owner, unsigned kind = {}) noexcept // attach to the specified owner basic block at the end
+      RSN_INLINE explicit insn(enum kind kind, bblock *owner) noexcept // attach to the specified owner basic block at the end
          : collection_item_mixin(owner), kind(kind) {}
-      RSN_INLINE explicit insn(insn *next, unsigned kind = {}) noexcept // attach to the owner basic block before the specified sibling instruction
+      RSN_INLINE explicit insn(enum kind kind, insn *next) noexcept // attach to the owner basic block before the specified sibling instruction
          : collection_item_mixin(next), kind(kind) {}
    protected:
       RSN_INLINE virtual ~insn() = default;
@@ -274,8 +276,8 @@ namespace rsn::opt {
       virtual insn *clone(bblock *owner) const = 0; // make a copy and attach it to the specified new owner basic block at the end
       virtual insn *clone(insn *next) const = 0;    // make a copy and attach it to the new owner basic block before the specified sibling instruction
    private: // fast (and trivial) RTTI
-      template<typename Dest> RSN_INLINE bool type_check() const noexcept { return dynamic_cast<const Dest *>(this); }
-      template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept;
+      template<typename> bool type_check() const noexcept = delete;
+      template<typename, typename Src> friend std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, bool> lib::is(Src *) noexcept; // TODO: noncopyable<> -> noncopyable
    public: // querying contents
       RSN_INLINE auto inputs() noexcept->lib::range_ref<lib::smart_ptr<operand> *>             { return _inputs;  }
       RSN_INLINE auto inputs() const noexcept->lib::range_ref<const lib::smart_ptr<operand> *> { return _inputs;  }
@@ -286,7 +288,7 @@ namespace rsn::opt {
    public: // miscellaneous
       RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification, and canonicalization
    private: // internal representation
-      const unsigned kind;
+      const enum kind kind;
    protected:
       lib::range_ref<lib::smart_ptr<operand> *> _inputs{nullptr, nullptr}; // the optimizer is to eliminate
       lib::range_ref<lib::smart_ptr<vreg> *> _outputs{nullptr, nullptr};   //  redundant stores
@@ -297,6 +299,12 @@ namespace rsn::opt {
    # endif
    };
    RSN_NOINLINE inline bblock::~bblock() = default;
+
+   class pure_insn: public insn { using insn::insn; };
+   template<> RSN_INLINE inline bool insn::type_check<pure_insn>() const noexcept { return kind > 0; }
+
+   class impure_insn: public insn { using insn::insn; };
+   template<> RSN_INLINE inline bool insn::type_check<impure_insn>() const noexcept { return kind < 0; }
 
 } // namespace rsn::opt
 
