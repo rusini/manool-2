@@ -22,7 +22,7 @@ a compiler middle-end.
 * IR operand and instruction representation were optimized for fast access to operands and RTTI (even when that involves unusual programming techniques from the
   standpoint of common C++ programming practices).
 
-* Branch instructions now involve a comparison operation, which might be more practical and/or convenient (for the constrant propagation pass).
+* Branch instructions now involve a comparison operation (which might be more practical and/or convenient for the constant propagation pass).
 
 * Output operands now appear after input operands in the dumps (after the `->` sign) and normally appear after input operands in the source code (arguably, this
   is more consistent than the previous approach of using the `:=` operator, for a number of reasons).
