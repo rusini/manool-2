@@ -2,9 +2,7 @@
 
 # include "ir.hh"
 
-namespace rsn::opt {
-   bool transform_to_ssa(proc *);
-}
+namespace rsn::opt { bool transform_to_ssa(proc *); }
 
 int main() {
    namespace opt = rsn::opt;
