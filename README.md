@@ -27,6 +27,8 @@ a compiler middle-end.
 * Output operands now appear after input operands in the dumps (after the `->` sign) and normally appear after input operands in the source code (arguably, this
   is more consistent than the previous approach of using the `:=` operator, for a number of reasons).
 
+* Transient data are now associated with IR nodes indirectly, via a transient index, for a number of practical reasons.
+
 * And finally: transformation to static single assignment (SSA) form is implemented.
 
 #### Most important differences from LLVM
