@@ -6,7 +6,6 @@ namespace rsn::opt { bool transform_to_ssa(proc *); }
 
 int main() {
    namespace opt = rsn::opt;
-   using opt::is, opt::as, opt::as_smart;
 
    auto pc = opt::proc::make({1, 0}); // iterative version of Factorial
    auto r_arg = opt::vreg::make(), r_res = opt::vreg::make();
