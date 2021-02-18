@@ -1,6 +1,6 @@
 // rusini0.hh
 
-/*    Copyright (C) 2020 Alexey Protasov (AKA Alex or rusini)
+/*    Copyright (C) 2020, 2021 Alexey Protasov (AKA Alex or rusini)
 
    This is free software: you can redistribute it and/or modify it under the terms of the version 3 of the GNU General Public License
    as published by the Free Software Foundation (and only version 3).
@@ -8,7 +8,7 @@
    This software is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License along with MANOOL.  If not, see <https://www.gnu.org/licenses/>.  */
+   You should have received a copy of the GNU General Public License along with this software.  If not, see <https://www.gnu.org/licenses/>.  */
 
 
 # ifndef RSN_INCLUDED_RUSINI0
@@ -88,9 +88,13 @@
    # define RSN_IF_WITHOUT_MT(...) __VA_ARGS__
 # endif
 
-# if __cplusplus && RSN_USE_DEBUG
-   //# include <iostream>
-   //namespace rsn::aux { using std::cerr; }
+# if RSN_USE_DEBUG
+   # include <cstdio> // fprintf, fputc, fputs, stderr
+   # define RSN_IF_USING_DEBUG(...) __VA_ARGS__
+   # define RSN_IF_NOT_USING_DEBUG(...)
+# else
+   # define RSN_IF_USING_DEBUG(...)
+   # define RSN_IF_NOT_USING_DEBUG(...) __VA_ARGS__
 # endif
 
 # endif // # ifndef RSN_INCLUDED_RUSINI0

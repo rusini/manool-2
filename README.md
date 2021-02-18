@@ -1,21 +1,35 @@
-*Dear community,*
+Compiler Optimizations Playground
+=================================
 
-I have started a new open-source project: **Compiler Optimizations Playground**: <https://github.com/rusini/manool-2>
-
-This is (hopefully) the simplest implementation (under 1 KLOC in modern C++) of the classic register-machine intermediate representation (IR) to undertake data
-and control flow analysis in a compiler middle-end (and inadvertently, the underlying infrastructure can be reused even on the code-generation stage, in a
-back-end, as a basis for a "machine IR" in LLVM terminology, due to its open architecture).
+This is (hopefully) the simplest implementation of the classic register-machine intermediate representation (IR) to undertake data and control flow analysis in
+a compiler middle-end.
 
 #### Project purpose
 
 * For people who wish to expand their knowledge by playing around with and implementing various compiler analysis and transformation passes -- this is a classic
-  IR infrastructure with a more accessible learning curve compared to LLVM and a simple, tiny code base.
+  IR infrastructure with a more accessible learning curve compared to LLVM and a simple, small code base.
 
 * For people who look for a middle-end/back-end to implement an optimizing compiler for their programming languages -- eventually they will be able to fork and
   adapt the code base due to its simplicity (I only expect x86-64 and possibly aarch64 ISAs to be covered, in contrast to LLVM).
 
 * For myself -- this IR infrastructure is a (hopefully) more flexible alternative to LLVM that I need to implement an optimizing compiler for my programming
   language MANOOL-2 (which requires static code analysis and optimizations, but a non-classic, just-in-time compilation scheme).
+
+#### Changes from the first release
+
+* A (rather general-purpose) support library is now officially endorsed (stuff under the namespace `::rsn::lib`).
+
+* IR operand and instruction representation were optimized for fast access to operands and RTTI (even when that involves unusual programming techniques from the
+  standpoint of common C++ programming practices).
+
+* Branch instructions now involve a comparison operation (which might be more practical and/or convenient for the constant propagation pass).
+
+* Output operands now appear after input operands in the dumps (after the `->` sign) and normally appear after input operands in the source code (arguably, this
+  is more consistent than the previous approach of using the `:=` operator, for a number of reasons).
+
+* Transient data are now associated with IR nodes indirectly, via a transient index, for a number of practical reasons.
+
+* And finally: transformation to static single assignment (SSA) form is implemented.
 
 #### Most important differences from LLVM
 
@@ -40,61 +54,68 @@ back-end, as a basis for a "machine IR" in LLVM terminology, due to its open arc
 
 #### Sample piece of code using the API
 
-    auto pr = opt::proc::make({}); // iterative version of Factorial
+    auto pc = opt::proc::make({1, 0}); // iterative version of Factorial
+    auto r_arg = opt::vreg::make(), r_res = opt::vreg::make();
+    auto b0 = opt::bblock::make(pc),
+         b1 = opt::bblock::make(pc),
+         b2 = opt::bblock::make(pc),
+         b3 = opt::bblock::make(pc);
 
-    auto r_arg  = opt::vreg::make(pr),
-         r_res  = opt::vreg::make(pr),
-         r_cond = opt::vreg::make(pr);
-    auto bb1 = opt::bblock::make(pr),
-         bb2 = opt::bblock::make(pr),
-         bb3 = opt::bblock::make(pr),
-         bb4 = opt::bblock::make(pr);
+    opt::insn_entry::make(b0, {r_arg});
+    opt::insn_mov::make(b0, opt::abs::make(1), r_res);
+    opt::insn_jmp::make(b0, b1);
 
-    opt::insn_entry::make(bb1, {r_arg});
-    opt::insn_mov::make(bb1, r_res, opt::abs_imm::make(1));
-    opt::insn_jmp::make(bb1, bb2);
+    opt::insn_br::make_bne(b1, r_arg, opt::abs::make(0), b2, b3);
 
-    opt::insn_binop::make_cmpne(bb2, r_cond, r_arg, opt::abs_imm::make(0));
-    opt::insn_cond_jmp::make(bb2, r_cond, bb3, bb4);
+    opt::insn_binop::make_umul(b2, r_res, r_arg, r_res);
+    opt::insn_binop::make_sub(b2, r_arg, opt::abs::make(1), r_arg);
+    opt::insn_jmp::make(b2, b1);
 
-    opt::insn_binop::make_umul(bb3, r_res, r_res, r_arg);
-    opt::insn_binop::make_sub(bb3, r_arg, r_arg, opt::abs_imm::make(1));
-    opt::insn_jmp::make(bb3, bb2);
+    opt::insn_ret::make(b3, {r_res});
 
-    opt::insn_ret::make(bb4, {r_res});
-
-    pr->dump();
+    pc->dump();
+    transform_to_ssa(pc);
+    pc->dump();
 
 #### Building the code in the repository
 
-    clang++ -w -std=c++17 -{O3,s} -DRSN_USE_DEBUG {main,ir0,ir}.cc
+    clang++ -w -std=c++17 -{O3,s} -DRSN_USE_DEBUG {main,ir0,opt-simplify,ssa}.cc
 
-On running, it displays an IR dump (or a number of them) on the standard error/log output.
+On running, it displays an IR dump (or a number of them) on the standard error/log output. For instance:
 
-#### Further observations
+    P3 = proc $0x00000001[0x00000000000000000000000000000001] as
+    L6:
+        entry -> R4
+        mov N11#1[0x1] -> R5
+        jmp to L7
+    L7:
+        beq R4, N14#0[0x0] to L9, L8
+    L8:
+        umul R5, R4 -> R5
+        sub R4, N17#1[0x1] -> R4
+        jmp to L7
+    L9:
+        ret R5
+    end proc P3
 
-* For the most part, all IR nodes allow for in-place updates and can be referred to by using (raw) pointers, so using (hash-based or order-based) sets of nodes,
-  tuples of nodes, or mappings with nodes or tuples of nodes as keys is quite efficient.
-
-* Alternatively, there are also places (class members) to inject temporary data in an intrussive manner directly into IR nodes. Some instruction-kind-dependent
-  optimizations are also expected to have implementations injected into the IR infrastructure description, namely constant folding (including inlining for a
-  single call site as a particular case of constant folding).
-
-* All constant-folding logic is in fact already implemented. In general, analysis and transformation passes should be implemented apart, though.
-
-* You can traverse the IR hierarchy in any direction, including bottom-up ("slots" for data operands and jump targets are not considered to be IR nodes, and
-  this would be an overengineering).
-
-* The IR instruction set is actually user-extensible via subclassing in C++ (but you can examine any kind of instructions by examining its output/input operands
-  and/or jump targets in a general way).
+    P3 = proc $0x00000001[0x00000000000000000000000000000001] as
+    L6:
+        entry -> R23
+        mov N11#1[0x1] -> R24
+        jmp to L7
+    L7:
+        phi R23, R28 -> R25
+        phi R24, R27 -> R26
+        beq R25, N14#0[0x0] to L9, L8
+    L8:
+        umul R26, R25 -> R27
+        sub R25, N17#1[0x1] -> R28
+        jmp to L7
+    L9:
+        ret R26
+    end proc P3
 
 ---
 
-This code is meant to constitute a playground, not a complete open-source product or even a library like LLVM, where otherwise most code would be typically
-contributed by a few project leaders -- I invite everyone (compiler technology enthusiasts and language designers) to play around with it and share your
-findings. I have experience with working on commercial compiler projects, but my experience with actually implementing advanced compiler optimizations is still
-limited...
-
-Thank you,
-
-*Alex Rusini* -- <rusini@manool.org>, <https://manool.org>
+*Alex Rusini* -- <mailto:rusini@manool.org>, <https://manool.org>  
+*Compiler Optimizations Playground* -- <https://github.com/rusini/manool-2>
