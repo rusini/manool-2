@@ -125,7 +125,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          auto in = bb->head();
          // rewrite phi destinations
          for (; is<insn_phi>(in); in = in->next()) {
-            stack.push_back({as<insn_phi>(in)->dest()->sn, vr_map[as<insn_phi>(in)->dest()->sn]}),
+            stack.reserve(7), stack.push_back({as<insn_phi>(in)->dest()->sn, vr_map[as<insn_phi>(in)->dest()->sn]}),
                vr_map[stack.back().first] = as<insn_phi>(in)->dest() = vreg::make();
          }
          // rewrite normal instructions
@@ -133,7 +133,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
             for (auto &input: in->inputs())
                if (is<vreg>(input)) input = vr_map[as<vreg>(input)->sn];
             for (auto &output: in->outputs())
-               stack.push_back({output->sn, vr_map[output->sn]}),
+               stack.reserve(7), stack.push_back({output->sn, vr_map[output->sn]}),
                   vr_map[stack.back().first] = output = vreg::make();
          }
          // process successors
@@ -163,7 +163,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
       for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next())
          for (const auto &input: in->inputs()) if (is<vreg>(input)) used[as<vreg>(input)->sn] = true;
       bool changed = false;
-      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in: lib::all(bb)) {
+      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in: all(bb)) {
          if (RSN_UNLIKELY(!is<insn_phi>(in))) break;
          if (RSN_UNLIKELY(!used[as<insn_phi>(in)->dest()->sn])) changed = (in->eliminate(), true);
       }
