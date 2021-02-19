@@ -14,24 +14,18 @@
 # ifndef RSN_INCLUDED_RUSINI
 # define RSN_INCLUDED_RUSINI
 
-# include <algorithm>   // equal, lexicographical_compare
-# include <array>
-# include <cstdlib>     // ptrdiff_t, size_t
-# include <cstring>     // memcpy
-# include <initializer_list>
-# include <iterator>    // begin, const_reverse_iterator, end, size, reverse_iterator
-# include <type_traits> // aligned_union_t, enable_if_t, is_base_of_v, is_convertible_v, is_enum_v, is_integral_v, is_same_v, is_trivially_copyable_v, remove_cv_t
+# include <iterator>    // begin, const_reverse_iterator, end, reverse_iterator
+# include <type_traits> // enable_if_t, is_base_of_v, is_convertible_v, remove_cv_t
 # include <utility>     // forward, move
 
 # include "rusini0.hh"
 
 namespace rsn::lib {
 
-   namespace aux { // ADL for begin/end/size
-      using std::begin, std::end, std::size;
+   namespace aux { // ADL for begin/end
+      using std::begin, std::end;
       template<typename Cont> RSN_INLINE static auto _begin(Cont &cont) noexcept(noexcept(begin(cont))) { return begin(cont); }
       template<typename Cont> RSN_INLINE static auto _end(Cont &cont) noexcept(noexcept(end(cont))) { return end(cont); }
-      template<typename Cont> RSN_INLINE static auto _size(Cont &cont) noexcept(noexcept(size(cont))) { return size(cont); }
    }
 
    // Utilities for Raw and RC-ing Pointers ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

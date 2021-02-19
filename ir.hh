@@ -14,6 +14,8 @@
 # ifndef RSN_INCLUDED_IR
 # define RSN_INCLUDED_IR
 
+# include <array>
+
 # include "ir0.hh"
 
 namespace rsn::opt {
