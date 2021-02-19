@@ -49,12 +49,12 @@ void rsn::opt::transform_to_ssa(proc *pc) {
 
    std::vector<bblock *> idom(bb_count);
    // Build Dominator Tree /////////////////////////////////////////////////////////////////////////
-   {  std::vector<bblock *> postdfs;
+   {  std::vector<bblock *> postdfs; postdfs.reserve(bb_count);
       std::vector<long> postdfs_num(bb_count);
       // determine postorder DFS ordering and numbering for the CFG
       {  decltype(postdfs_num)::value_type num = {};
          std::vector<signed char> visited(bb_count);
-         auto traverse = [&](auto &traverse, bblock *bb) RSN_NOINLINE{
+         auto traverse = [&](auto &traverse, bblock *bb) noexcept RSN_NOINLINE{
             if (RSN_UNLIKELY(visited[bb->sn])) return;
             visited[bb->sn] = true;
             for (auto succ: succs[bb->sn]) traverse(traverse, succ);
@@ -126,7 +126,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
          // rewrite phi destinations
          for (; is<insn_phi>(in); in = in->next()) {
             stack.reserve(7), stack.push_back({as<insn_phi>(in)->dest()->sn, vr_map[as<insn_phi>(in)->dest()->sn]}),
-               vr_map[stack.back().first] = as<insn_phi>(in)->dest() = vreg::make();
+               vr_map[stack.back().first] = as<insn_phi>(in)->dest() = vreg::make(); // "reserve" speeds up in practice
          }
          // rewrite normal instructions
          for (; in; in = in->next()) {
@@ -134,7 +134,7 @@ void rsn::opt::transform_to_ssa(proc *pc) {
                if (is<vreg>(input)) input = vr_map[as<vreg>(input)->sn];
             for (auto &output: in->outputs())
                stack.reserve(7), stack.push_back({output->sn, vr_map[output->sn]}),
-                  vr_map[stack.back().first] = output = vreg::make();
+                  vr_map[stack.back().first] = output = vreg::make(); // ditto
          }
          // process successors
          for (auto succ: succs[bb->sn]) {
