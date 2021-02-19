@@ -398,7 +398,7 @@ RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
          for (auto &output: in->outputs()) if (RSN_UNLIKELY(output->sn >= count)) count = output->sn + 1;
       }
       std::vector<lib::smart_ptr<vreg>> res(count);
-      for (; count; --count) res.emplace_back(vreg::make());
+      for (; count; --count) res.push_back(vreg::make());
       return res;
    }();
 

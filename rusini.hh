@@ -170,57 +170,57 @@ namespace rsn::lib {
 
    // Utilities for "stable" iteration over collection items
 
-   template<typename Owner, typename Obj> RSN_INLINE auto all(collection_mixin<Owner, Obj> *owner)       { return all(owner->head(), {}); }
-   template<typename Owner, typename Obj> RSN_INLINE auto all(const collection_mixin<Owner, Obj> *owner) { return all(owner->head(), {}); }
-   template<typename Owner, typename Obj> RSN_INLINE auto rev(collection_mixin<Owner, Obj> *owner)       { return rev({}, owner->rear()); }
-   template<typename Owner, typename Obj> RSN_INLINE auto rev(const collection_mixin<Owner, Obj> *owner) { return rev({}, owner->rear()); }
+   template<typename Owner, typename Obj> RSN_INLINE inline auto all(collection_mixin<Owner, Obj> *owner)       { return all(owner->head(), {}); }
+   template<typename Owner, typename Obj> RSN_INLINE inline auto all(const collection_mixin<Owner, Obj> *owner) { return all(owner->head(), {}); }
+   template<typename Owner, typename Obj> RSN_INLINE inline auto rev(collection_mixin<Owner, Obj> *owner)       { return rev({}, owner->rear()); }
+   template<typename Owner, typename Obj> RSN_INLINE inline auto rev(const collection_mixin<Owner, Obj> *owner) { return rev({}, owner->rear()); }
 
    template<typename Obj, typename Owner> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, decltype(nullptr)) {
-      std::size_t size = 0; for (auto it = begin; it; it = it->next()) ++size;
-      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<Obj *>::size_type size = 0; for (auto it = begin; it; it = it->next()) ++size;
+      std::vector<Obj *> res(size); decltype(size) sn = 0; // redundant value-initialization is actually faster than extra branching in push_back
       for (auto it = begin; it; it = it->next(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner> RSN_NOINLINE auto all(const collection_item_mixin<Obj, Owner> *begin, decltype(nullptr)) {
-      std::size_t size = 0; for (auto it = begin; it; it = it->next()) ++size;
-      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<const Obj *>::size_type size = 0; for (auto it = begin; it; it = it->next()) ++size;
+      std::vector<const Obj *> res(size); decltype(size) sn = 0; // ditto
       for (auto it = begin; it; it = it->next(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, End *end) {
-      std::size_t size = 0; for (auto it = begin; it != end; it = it->next()) ++size;
-      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<Obj *>::size_type size = 0; for (auto it = begin; it != end; it = it->next()) ++size;
+      std::vector<Obj *> res(size); decltype(size) sn = 0; // ditto
       for (auto it = begin; it != end; it = it->next(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(const collection_item_mixin<Obj, Owner> *begin, End *end) {
-      std::size_t size = 0; for (auto it = begin; it != end; it = it->next()) ++size;
-      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<const Obj *>::size_type size = 0; for (auto it = begin; it != end; it = it->next()) ++size;
+      std::vector<const Obj *> res(size); decltype(size) sn = 0; // ditto
       for (auto it = begin; it != end; it = it->next(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }
 
    template<typename Obj, typename Owner> RSN_NOINLINE auto rev(decltype(nullptr), collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size = 0; for (auto it = begin; it; it = it->prev()) ++size;
-      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<Obj *>::size_type size = 0; for (auto it = begin; it; it = it->prev()) ++size;
+      std::vector<Obj *> res(size); decltype(size) sn = 0; // ditto
       for (auto it = begin; it; it = it->prev(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner> RSN_NOINLINE auto rev(decltype(nullptr), const collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size = 0; for (auto it = begin; it; it = it->prev()) ++size;
-      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<const Obj *>::size_type size = 0; for (auto it = begin; it; it = it->prev()) ++size;
+      std::vector<const Obj *> res(size); decltype(size) sn = 0; // ditto
       for (auto it = begin; it; it = it->prev(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto rev(End *end, collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size = 0; for (auto it = begin; it != end; it = it->prev()) ++size;
-      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<Obj *>::size_type size = 0; for (auto it = begin; it != end; it = it->prev()) ++size;
+      std::vector<Obj *> res(size); decltype(size) sn = 0; // ditto
       for (auto it = begin; it != end; it = it->prev(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto rev(End *end, const collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size = 0; for (auto it = begin; it != end; it = it->prev()) ++size;
-      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      typename std::vector<const Obj *>::size_type size = 0; for (auto it = begin; it != end; it = it->prev()) ++size;
+      std::vector<const Obj *> res(size); decltype(size) sn = 0; // ditto
       for (auto it = begin; it != end; it = it->prev(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }

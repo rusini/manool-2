@@ -118,7 +118,7 @@ namespace rsn::opt {
       template<typename Loc> RSN_INLINE explicit insn_call( Loc loc,
          lib::smart_ptr<operand> &&dest, std::vector<lib::smart_ptr<operand>> &&params, std::vector<lib::smart_ptr<vreg>> &&results ) noexcept
          : impure_insn(_call, loc), _inputs(std::move(params)), _outputs(std::move(results)) {
-         _inputs.emplace_back(std::move(dest));
+         _inputs.push_back(std::move(dest));
          _inputs.shrink_to_fit(), _outputs.shrink_to_fit();
          insn::_inputs = lib::range_ref{&*_inputs.begin(), &*_inputs.end()}, insn::_outputs = lib::range_ref{&*_outputs.begin(), &*_outputs.end()};
       }
