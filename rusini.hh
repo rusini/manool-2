@@ -107,157 +107,6 @@ namespace rsn::lib {
    template<typename Dest, typename Src> RSN_INLINE RSN_NODISCARD inline std::enable_if_t<std::is_base_of_v<noncopyable<>, Src>, smart_ptr<Dest>>
       as_smart(Src *src) noexcept { return as<Dest>(src); }
 
-   // Temporary Vectors Optimized for Small Sizes //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-   template<typename Obj, std::size_t MinRes = /*up to 2 cache-lines*/ (128 - 2 * sizeof(Obj *)) / sizeof(Obj)>
-   class small_vec { // lightweight analog of llvm::SmallVector
-      static_assert(std::is_same_v<Obj, std::remove_cv_t<Obj>>); // no const/volatile like for std::containers, which makes sense
-   public: // type aliases to imitate std::containers
-      typedef Obj              value_type;
-      typedef value_type       *pointer, &reference;
-      typedef const value_type *const_pointer, &const_reference;
-      typedef std::size_t      size_type;
-      typedef std::ptrdiff_t   difference_type;
-      typedef pointer          iterator;
-      typedef const_pointer    const_iterator;
-      typedef std::reverse_iterator<iterator> reverse_iterator;
-      typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
-   public: // standard operations
-      RSN_INLINE small_vec() noexcept
-         : _begin(reinterpret_cast<decltype(_begin)>(buf.data())), _end(_begin) {
-      }
-      RSN_INLINE small_vec(const small_vec &rhs)
-         : small_vec(static_cast<size_type>(aux::_size(rhs)), rhs) {
-      }
-      RSN_INLINE small_vec(small_vec &&rhs) noexcept {
-         if (RSN_UNLIKELY(rhs._begin != reinterpret_cast<decltype(rhs._begin)>(rhs.buf.data())))
-            _begin = rhs._begin, _end = rhs._end, rhs._begin = reinterpret_cast<decltype(rhs._begin)>(rhs.buf.data());
-         else {
-            _end = (_begin = reinterpret_cast<decltype(_begin)>(buf.data())) + rhs.size();
-            if constexpr (std::is_trivially_copyable_v<value_type>)
-               std::memcpy(&buf, &rhs.buf, sizeof buf <= 64 ? sizeof buf : (const unsigned char *)_end - (const unsigned char *)_begin);
-            else {
-               for (auto dest = _begin, end = _end, src = rhs._begin; dest != end;) new(dest++) value_type(std::move(*src++));
-               for (auto begin = rhs._begin; rhs._end != begin;) (--rhs._end)->~value_type();
-            }
-         }
-         rhs._end = rhs._begin;
-      }
-      RSN_INLINE ~small_vec() {
-         if constexpr (!std::is_trivially_copyable_v<value_type>)
-            for (auto begin = _begin; _end != begin;) (--_end)->~value_type();
-         if (RSN_UNLIKELY(_begin != reinterpret_cast<decltype(_begin)>(buf.data())))
-            delete[] reinterpret_cast<std::aligned_union_t<0, value_type> *>(_begin);
-      }
-      RSN_INLINE small_vec &operator=(const small_vec &rhs) {
-         clear(rhs); return *this;
-      }
-      RSN_INLINE small_vec &operator=(small_vec &&rhs) noexcept {
-         clear(std::move(rhs)); return *this;
-      }
-      RSN_INLINE void swap(small_vec &rhs) noexcept {
-         std::swap(*this, rhs); // the standard version of swap is just fine
-      }
-   public: // miscellaneous construction operations
-      RSN_INLINE explicit small_vec(size_type res)
-         : _begin(reinterpret_cast<decltype(_begin)>(RSN_LIKELY(res <= MinRes) ? buf.data() : new std::aligned_union_t<0, value_type>[res])), _end(_begin) {}
-      small_vec(size_type res, std::initializer_list<value_type> rhs)
-         : small_vec(res) { for (auto &&obj: rhs) push_back(obj); }
-      template<typename Rhs> small_vec(size_type res, Rhs &rhs)
-         : small_vec(res) { for (auto &&obj: rhs) emplace_back(obj); }
-      template<typename Rhs> small_vec(size_type res, Rhs &&rhs)
-         : small_vec(res) { for (auto &&obj: rhs) emplace_back(std::move(obj)); }
-      RSN_INLINE small_vec(std::initializer_list<value_type> rhs, size_type res = 0)
-         : small_vec(rhs.size() + res, rhs) {}
-      template<typename Rhs, std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, int> = 0> RSN_INLINE small_vec(Rhs &rhs, size_type res = 0)
-         : small_vec(static_cast<size_type>(aux::_size(rhs)) + res, rhs) {}
-      template<typename Rhs, std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, int> = 0> RSN_INLINE small_vec(Rhs &&rhs, size_type res = 0)
-         : small_vec(static_cast<size_type>(aux::_size(rhs)) + res, std::move(rhs)) {}
-   public:
-      RSN_INLINE void clear() noexcept {
-         if constexpr (!std::is_trivially_copyable_v<value_type>)
-            for (auto begin = _begin; _end != begin;) (--_end)->~value_type();
-      }
-   public:
-      RSN_INLINE void clear(size_type res)
-         { this->~small_vec(); try { new(this) small_vec(res); } catch (...) { new(this) small_vec; throw; } }
-      RSN_INLINE void clear(size_type res, std::initializer_list<value_type> rhs)
-         { this->~small_vec(); try { new(this) small_vec(res, rhs); } catch (...) { new(this) small_vec; throw; } }
-      template<typename Rhs> RSN_INLINE void clear(size_type res, Rhs &rhs)
-         { this->~small_vec(); try { new(this) small_vec(res, rhs); } catch (...) { new(this) small_vec; throw; } }
-      template<typename Rhs> RSN_INLINE void clear(size_type res, Rhs &&rhs)
-         { this->~small_vec(); try { new(this) small_vec(res, std::move(rhs)); } catch (...) { new(this) small_vec; throw; } }
-      RSN_INLINE void clear(std::initializer_list<value_type> rhs, size_type res = 0)
-         { this->~small_vec(); try { new(this) small_vec(rhs, res); } catch (...) { new(this) small_vec; throw; } }
-      template<typename Rhs> RSN_INLINE std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, void> clear(Rhs &rhs, size_type res = 0)
-         { this->~small_vec(); try { new(this) small_vec(rhs, res); } catch (...) { new(this) small_vec; throw; } }
-      template<typename Rhs> RSN_INLINE std::enable_if_t<!std::is_integral_v<Rhs> && !std::is_enum_v<Rhs>, void> clear(Rhs &&rhs, size_type res = 0)
-         { this->~small_vec(); try { new(this) small_vec(std::move(rhs), res); } catch (...) { new(this) small_vec; throw; } }
-   public: // iterators
-      RSN_INLINE iterator       begin() noexcept       { return _begin; }
-      RSN_INLINE const_iterator begin() const noexcept { return _begin; }
-      RSN_INLINE iterator       end() noexcept       { return _end; }
-      RSN_INLINE const_iterator end() const noexcept { return _end; }
-      RSN_INLINE auto rbegin() noexcept       { return reverse_iterator{end()}; }
-      RSN_INLINE auto rbegin() const noexcept { return const_reverse_iterator{end()}; }
-      RSN_INLINE auto rend() noexcept       { return reverse_iterator{begin()}; }
-      RSN_INLINE auto rend() const noexcept { return const_reverse_iterator{begin()}; }
-      RSN_INLINE auto cbegin() const noexcept  { return begin(); }
-      RSN_INLINE auto cend() const noexcept    { return end(); }
-      RSN_INLINE auto crbegin() const noexcept { return rbegin(); }
-      RSN_INLINE auto crend() const noexcept   { return rend(); }
-   public: // capacity
-      RSN_INLINE bool empty() const noexcept { return end() == begin(); }
-      RSN_INLINE size_type size() const noexcept { return end() - begin(); }
-      RSN_INLINE size_type max_size() const noexcept { return std::numeric_limits<std::size_t>::max() / sizeof(Obj); }
-      size_type capacity() const noexcept = delete; // not applicable in case of small_vec
-      void reserve(size_type) = delete;             // ditto
-      void shrink_to_fit() = delete;                // ditto
-   public: // element and data access
-      RSN_INLINE auto &operator[](size_type sn) noexcept       { return begin()[sn]; }
-      RSN_INLINE auto &operator[](size_type sn) const noexcept { return begin()[sn]; }
-      RSN_INLINE auto &at(size_type sn)       { return check_range(sn), (*this)[sn]; }
-      RSN_INLINE auto &at(size_type sn) const { return check_range(sn), (*this)[sn]; }
-      RSN_INLINE auto front() noexcept       { return *begin(); }
-      RSN_INLINE auto front() const noexcept { return *begin(); }
-      RSN_INLINE auto back() noexcept       { return *std::prev(end()); }
-      RSN_INLINE auto back() const noexcept { return *std::prev(end()); }
-      RSN_INLINE auto data() noexcept       { return begin(); }
-      RSN_INLINE auto data() const noexcept { return begin(); }
-   private:
-      RSN_INLINE void check_range(size_type sn) const
-         { if (RSN_UNLIKELY(sn >= size())) throw std::out_of_range{"::rsn::lib::small_vec::at(std::size_t)"}; }
-   public: // modifiers
-      template<typename ...Rhs> RSN_INLINE reference emplace_back(Rhs &&...rhs) noexcept(noexcept(new(nullptr) value_type(std::forward<Rhs>(rhs)...)))
-         { return new(_end) value_type(std::forward<Rhs>(rhs)...), *_end++; }
-      RSN_INLINE void push_back(const value_type &rhs) noexcept(noexcept(emplace_back(rhs)))
-         { emplace_back(rhs); }
-      RSN_INLINE void push_back(value_type &&rhs) noexcept
-         { emplace_back(std::move(rhs)); }
-      RSN_INLINE void pop_back() noexcept
-         { (--_end)->~value_type(); }
-   private: // internal representation
-      pointer _begin, _end;
-      std::array<std::aligned_union_t<0, value_type>, MinRes> buf;
-   };
-   // Deduction guides
-   template<typename Rhs> small_vec(Rhs &&) -> small_vec<std::decay_t<decltype(*aux::_begin(std::declval<Rhs>()))>>;
-   // Non-member operations
-   template<typename Obj, std::size_t MinRes> RSN_INLINE inline void swap(small_vec<Obj, MinRes> &lhs, small_vec<Obj, MinRes> &rhs) noexcept // for completeness
-      { lhs.swap(rhs); }
-   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator==(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
-      { return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin()); }
-   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator< (const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
-      { return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end()); }
-   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator!=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
-      { return std::rel_ops::operator!=(lhs, rhs); }
-   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator> (const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
-      { return std::rel_ops::operator> (lhs, rhs); }
-   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator<=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
-      { return std::rel_ops::operator<=(lhs, rhs); }
-   template<typename Obj, std::size_t MinRes> RSN_NOINLINE inline bool operator>=(const small_vec<Obj, MinRes> &lhs, const small_vec<Obj, MinRes> &rhs)
-      { return std::rel_ops::operator>=(lhs, rhs); }
-
    // Collections //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    template<typename Obj, typename Owner> class collection_item_mixin;
@@ -321,50 +170,58 @@ namespace rsn::lib {
 
    // Utilities for "stable" iteration over collection items
 
-   template<typename Obj, typename Owner> RSN_INLINE auto all(collection_mixin<Obj, Owner> *owner)       { return all(owner->head(), {}); }
-   template<typename Obj, typename Owner> RSN_INLINE auto all(const collection_mixin<Obj, Owner> *owner) { return all(owner->head(), {}); }
-   template<typename Obj, typename Owner> RSN_INLINE auto rev(collection_mixin<Obj, Owner> *owner)       { return rev({}, owner->rear()); }
-   template<typename Obj, typename Owner> RSN_INLINE auto rev(const collection_mixin<Obj, Owner> *owner) { return rev({}, owner->rear()); }
+   template<typename Owner, typename Obj> RSN_INLINE auto all(collection_mixin<Owner, Obj> *owner)       { return all(owner->head(), {}); }
+   template<typename Owner, typename Obj> RSN_INLINE auto all(const collection_mixin<Owner, Obj> *owner) { return all(owner->head(), {}); }
+   template<typename Owner, typename Obj> RSN_INLINE auto rev(collection_mixin<Owner, Obj> *owner)       { return rev({}, owner->rear()); }
+   template<typename Owner, typename Obj> RSN_INLINE auto rev(const collection_mixin<Owner, Obj> *owner) { return rev({}, owner->rear()); }
 
    template<typename Obj, typename Owner> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, decltype(nullptr)) {
-      std::size_t size{}; for (auto it = begin; it; it = it->next()) ++size;
-      small_vec<Obj *> res(size); for (auto it = begin; it; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it; it = it->next()) ++size;
+      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it; it = it->next(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner> RSN_NOINLINE auto all(const collection_item_mixin<Obj, Owner> *begin, decltype(nullptr)) {
-      std::size_t size{}; for (auto it = begin; it; it = it->next()) ++size;
-      small_vec<const Obj *> res(size); for (auto it = begin; it; it = it->next()) res.emplace_back(static_cast<const Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it; it = it->next()) ++size;
+      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it; it = it->next(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(collection_item_mixin<Obj, Owner> *begin, End *end) {
-      std::size_t size{}; for (auto it = begin; it != end; it = it->next()) ++size;
-      small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->next()) res.emplace_back(static_cast<Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it != end; it = it->next()) ++size;
+      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it != end; it = it->next(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto all(const collection_item_mixin<Obj, Owner> *begin, End *end) {
-      std::size_t size{}; for (auto it = begin; it != end; it = it->next()) ++size;
-      small_vec<const Obj *> res(size); for (auto it = begin; it != end; it = it->next()) res.emplace_back(static_cast<const Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it != end; it = it->next()) ++size;
+      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it != end; it = it->next(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }
 
    template<typename Obj, typename Owner> RSN_NOINLINE auto rev(decltype(nullptr), collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size{}; for (auto it = begin; it; it = it->prev()) ++size;
-      small_vec<Obj *> res(size); for (auto it = begin; it; it = it->prev()) res.emplace_back(static_cast<Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it; it = it->prev()) ++size;
+      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it; it = it->prev(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner> RSN_NOINLINE auto rev(decltype(nullptr), const collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size{}; for (auto it = begin; it; it = it->prev()) ++size;
-      small_vec<const Obj *> res(size); for (auto it = begin; it; it = it->prev()) res.emplace_back(static_cast<const Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it; it = it->prev()) ++size;
+      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it; it = it->prev(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto rev(End *end, collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size{}; for (auto it = begin; it != end; it = it->prev()) ++size;
-      small_vec<Obj *> res(size); for (auto it = begin; it != end; it = it->prev()) res.emplace_back(static_cast<Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it != end; it = it->prev()) ++size;
+      std::vector<Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it != end; it = it->prev(), ++sn) res[sn] = static_cast<Obj *>(it);
       return res;
    }
    template<typename Obj, typename Owner, typename End> RSN_NOINLINE auto rev(End *end, const collection_item_mixin<Obj, Owner> *begin) {
-      std::size_t size{}; for (auto it = begin; it != end; it = it->prev()) ++size;
-      small_vec<const Obj *> res(size); for (auto it = begin; it != end; it = it->prev()) res.emplace_back(static_cast<const Obj *>(it));
+      std::size_t size = 0; for (auto it = begin; it != end; it = it->prev()) ++size;
+      std::vector<const Obj *> res(size); typename decltype(res)::size_type sn = 0;
+      for (auto it = begin; it != end; it = it->prev(), ++sn) res[sn] = static_cast<const Obj *>(it);
       return res;
    }
 
