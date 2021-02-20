@@ -286,6 +286,7 @@ namespace rsn::opt {
       RSN_INLINE auto targets() noexcept->lib::range_ref<bblock **>                            { return _targets; }
       RSN_INLINE auto targets() const noexcept->lib::range_ref<bblock *const *>                { return _targets; }
    public: // miscellaneous
+      std::size_t sn;
       RSN_INLINE virtual bool simplify() { return false; } // constant folding, algebraic simplification, and canonicalization
    private: // internal representation
       const enum kind kind;
