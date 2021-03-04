@@ -13,6 +13,7 @@
 
 # include "ir.hh"
 
+# if 0
 namespace rsn::opt { void transform_ipsccp(proc *); }
 
 void rsn::opt::transform_ipsccp(proc *pc) {
@@ -108,9 +109,16 @@ namespace rsn::opt {
    std::vector<lib::smart_ptr<operand>> rsn::opt::insn_binop::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)
       { return opt::evaluate(this, std::move(inputs)); }
 }
+# endif
 
+// Some absolute immediate operands to share
+namespace rsn::opt { static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1); }
+
+namespace rsn::opt {
+   static inline std::vector<lib::smart_ptr<operand>> evaluate(insn_binop *, std::vector<lib::smart_ptr<operand>> &&);
+}
 // Interpret an operation over lattice values
-RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<operand>> &&inputs) {
+RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
    auto &lhs = inputs[0], &rhs = inputs[1];
    if (!lhs || !rhs) return {{}}; // see "Engineering a Compiler", p. 517
    switch (insn->op) {
@@ -147,10 +155,10 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
          return {abs::make(-as<rel_disp>(rhs)->add)};
       if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
          return {abs::make(as<rel_disp>(lhs)->add - as<rel_disp>(rhs)->add)};
-      if (lhs == rhs) // can hold only for VRs
-         return {abs_0}; // "bottom" neutralization
+      if (lhs == rhs) // can hold only for VRs at this point
+         return {abs_0}; // _|_ neutralization
       return {insn->dest()};
-   case insn_binop::_mul: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
+   case insn_binop::/*_mul*/_umul: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 0))
@@ -172,7 +180,7 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_1};
-      if (lhs == rhs) // can hold only for VRs
+      if (lhs == rhs) // can hold only for VRs at this point
          return {abs_1}; // _|_ neutralization; UB when RHS == 0
       return {insn->dest()}; // UB (trap) when RHS == 0
    case insn_binop::_urem: // division by 0 causes UB
@@ -187,7 +195,7 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_0};
-      if (lhs == rhs) // can hold only for VRs
+      if (lhs == rhs) // can hold only for VRs at this point
          return {abs_0}; // _|_ neutralization; UB when RHS == 0
       return {insn->dest()}; // UB (trap) when RHS == 0
    case insn_binop::_sdiv: // division by 0 and division of the minimum negative number by -1 causes UB
@@ -203,7 +211,7 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_1};
-      if (lhs == rhs) // can hold only for VRs
+      if (lhs == rhs) // can hold only for VRs at this point
          return {abs_1}; // _|_ neutralization; UB when RHS == 0
       return {insn->dest()}; // potentially UB (trap)
    case insn_binop::_srem: // division by 0 and division of the minimum negative number by -1 causes UB
@@ -219,7 +227,7 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_0};
-      if (lhs == rhs) // can hold only for VRs
+      if (lhs == rhs) // can hold only for VRs at this point
          return {abs_0}; // _|_ neutralization; UB when RHS == 0
       return {insn->dest()}; // potentially UB (trap)
    case insn_binop::_and:
@@ -266,7 +274,7 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
          return {std::move(lhs)};
       return {insn->dest()};
    case insn_binop::_shl:  // shift counter is taken by modulo 64 (as on X86)
-      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0)
+      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
          return {std::move(lhs)}; // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
          return {std::move(lhs)};
@@ -274,7 +282,7 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
          return {abs::make(as<abs>(lhs)->val << (as<abs>(rhs)->val & 0x3F))};
       return {insn->dest()};
    case insn_binop::_ushr: // shift counter is taken by modulo 64 (as on X86)
-      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0)
+      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
          return {std::move(lhs)}; // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
          return {std::move(lhs)};
@@ -282,16 +290,17 @@ RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *i
          return {abs::make(as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
       return {insn->dest()};
    case insn_binop::_sshr: // shift counter is taken by modulo 64 (as on X86)
-      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0)
+      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
          return {std::move(lhs)}; // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {(long long)abs::make(as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
+         return {abs::make((long long)as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
       return {insn->dest()};
    }
 }
 
+# if 0
 namespace rsn::opt { static bool simplify(insn_br *); bool insn_br::simplify() { return opt::simplify(this); } }
 
 RSN_INLINE static inline bool rsn::opt::simplify(insn_br *in) {
@@ -421,3 +430,4 @@ RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
 
    return eliminate(), true;
 }
+# endif
