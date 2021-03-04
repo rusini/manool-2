@@ -100,53 +100,42 @@ void rsn::opt::transform_ipsccp(proc *pc) {
 }
 
 
-namespace rsn::opt {
-   // Some absolute immediate operands to share
-   static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1);
-
-   static RSN_INLINE inline void split(insn *in) { // split the BB at the insn
-      auto bb = RSN_LIKELY(in->owner()->next()) ? bblock::make(in->owner()->next()) : bblock::make(in->owner()->owner());
-      for (auto _in: all(in, {})) _in->reattach(bb);
-   }
-} // namespace rsn::opt
-
+// Some absolute immediate operands to share
+namespace rsn::opt { static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1); }
 
 namespace rsn::opt {
-   static inline std::vector<operand *> evaluate(decltype(insn_binop::op), std::vector<operand *> &&);
-   std::vector<operand *> rsn::opt::insn_binop::evaluate(std::vector<operand *> &&inputs) { return opt::evaluate(op, std::move(inputs)); }
+   static inline std::vector<lib::smart_ptr<operand>> evaluate(insn_binop *, std::vector<lib::smart_ptr<operand>> &&);
+   std::vector<lib::smart_ptr<operand>> rsn::opt::insn_binop::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)
+      { return opt::evaluate(this, std::move(inputs)); }
 }
 
-// arithmetic overflow for add/sub/mul is treated by modulo 2**64
-// division by zero and division of the minimum negative number by -1 causes UB
-// shift counter is interpreted by modulo 64
-RSN_INLINE std::vector<operand *> rsn::opt::evaluate(insn_binop *insn, std::vector<operand *> &&inputs) {
+// Interpret an operation over lattice values
+RSN_INLINE std::vector<lib::smart_ptr<operand>> rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<operand>> &&inputs) {
    auto &lhs = inputs[0], &rhs = inputs[1];
-   if (!lhs || !rhs) return {{}};
+   if (!lhs || !rhs) return {{}}; // see "Engineering a Compiler", p. 517
    switch (insn->op) {
    default:
       RSN_UNREACHABLE();
-   case insn_binop::_add:
+   case insn_binop::_add: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(lhs) && !is<abs>(rhs))
-         swap(lhs, rhs);
+         lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 0))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make(as<abs>(lhs)->val + as<abs>(rhs)->val)};
       if (is<rel_base>(lhs) && is<abs>(rhs))
-         return {rel_disp::make(as<rel_base>(lhs), +as<abs>(rhs)->val)};
+         return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), +as<abs>(rhs)->val)};
       if (is<rel_disp>(lhs) && is<abs>(rhs))
          return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
             (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add + as<abs>(rhs)->val)};
       return {insn->dest()};
-   case insn_binop::_sub:
-      if (lhs == rhs)
-         return {abs_0};
+   case insn_binop::_sub: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 0))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make(as<abs>(lhs)->val - as<abs>(rhs)->val)};
       if (is<rel_base>(lhs) && is<abs>(rhs))
-         return {rel_disp::make(as<rel_base>(lhs), -as<abs>(rhs)->val)};
+         return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), -as<abs>(rhs)->val)};
       if (is<rel_disp>(lhs) && is<abs>(rhs))
          return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
             (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add - as<abs>(rhs)->val)};
@@ -158,86 +147,88 @@ RSN_INLINE std::vector<operand *> rsn::opt::evaluate(insn_binop *insn, std::vect
          return {abs::make(-as<rel_disp>(rhs)->add)};
       if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
          return {abs::make(as<rel_disp>(lhs)->add - as<rel_disp>(rhs)->add)};
+      if (lhs == rhs) // can hold only for VRs
+         return {abs_0}; // "bottom" neutralization
       return {insn->dest()};
-   case insn_binop::_mul:
+   case insn_binop::_mul: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(lhs) && !is<abs>(rhs))
-         swap(lhs, rhs);
+         lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 0))
-         return {std::move(rhs)};
+         return {std::move(rhs)}; // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make(as<abs>(lhs)->val * as<abs>(rhs)->val)};
       return {insn->dest()};
-   case insn_binop::_udiv:
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 0)
-         return {insn->dest()};
-      if (lhs == rhs)
-         return {abs_1};
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 1)
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && as<abs>(lhs)->val == 0)
+   case insn_binop::_udiv: // division by 0 causes UB
+      if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
+         return {insn->dest()}; // _|_ for further lowering to insn_oops
+      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
+         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make(as<abs>(lhs)->val / as<abs>(rhs)->val)};
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_1};
-      return {insn->dest()};
-   case insn_binop::_urem:
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 0)
-         return {insn->dest()};
-      if (lhs == rhs)
-         return {abs_0};
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 1)
-         return {abs_0};
-      if (is<abs>(lhs) && as<abs>(lhs)->val == 0)
-         return {std::move(lhs)};
+      if (lhs == rhs) // can hold only for VRs
+         return {abs_1}; // _|_ neutralization; UB when RHS == 0
+      return {insn->dest()}; // UB (trap) when RHS == 0
+   case insn_binop::_urem: // division by 0 causes UB
+      if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
+         return {insn->dest()}; // _|_ for further lowering to insn_oops
+      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
+         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
+         return {abs_0}; // possible _|_ neutralization
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make(as<abs>(lhs)->val % as<abs>(rhs)->val)};
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_0};
-      return {insn->dest()};
-   case insn_binop::_sdiv:
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 0)
-         return {insn->dest()};
-      if (lhs == rhs)
-         return {abs_1};
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 1)
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && as<abs>(lhs)->val == 0)
+      if (lhs == rhs) // can hold only for VRs
+         return {abs_0}; // _|_ neutralization; UB when RHS == 0
+      return {insn->dest()}; // UB (trap) when RHS == 0
+   case insn_binop::_sdiv: // division by 0 and division of the minimum negative number by -1 causes UB
+      if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
+         return {insn->dest()}; // _|_ for further lowering to insn_oops [*]
+      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
+         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {as<abs>(lhs)->val == std::numeric_limits<long long>::max && as<abs>(rhs)->val == -1 ? (operand *)insn->dest() :
-            (operand *)abs::make((long long)as<abs>(lhs)->val / (long long)as<abs>(rhs)->val)};
+         return {as<abs>(lhs)->val == std::numeric_limits<long long>::max() && as<abs>(rhs)->val == -1 ? (lib::smart_ptr<operand>)insn->dest() /*[*]*/ :
+            (lib::smart_ptr<operand>)abs::make((long long)as<abs>(lhs)->val / (long long)as<abs>(rhs)->val)};
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_1};
-      return {insn->dest()};
-   case insn_binop::_srem:
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 0)
-         return {insn->dest()};
-      if (lhs == rhs)
-         return {abs_0};
-      if (is<abs>(rhs) && as<abs>(rhs)->val == 1)
-         return {abs_0};
-      if (is<abs>(lhs) && as<abs>(lhs)->val == 0)
-         return {std::move(lhs)};
+      if (lhs == rhs) // can hold only for VRs
+         return {abs_1}; // _|_ neutralization; UB when RHS == 0
+      return {insn->dest()}; // potentially UB (trap)
+   case insn_binop::_srem: // division by 0 and division of the minimum negative number by -1 causes UB
+      if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
+         return {insn->dest()}; // _|_ for further lowering to insn_oops [*]
+      if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
+         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
+         return {abs_0}; // possible _|_ neutralization
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {as<abs>(lhs)->val == std::numeric_limits<long long>::max && as<abs>(rhs)->val == -1 ? (operand *)insn->dest() :
-            (operand *)abs::make((long long)as<abs>(lhs)->val % (long long)as<abs>(rhs)->val)};
+         return {as<abs>(lhs)->val == std::numeric_limits<long long>::max() && as<abs>(rhs)->val == -1 ? (lib::smart_ptr<operand>)insn->dest() /*[*]*/ :
+            (lib::smart_ptr<operand>)abs::make((long long)as<abs>(lhs)->val % (long long)as<abs>(rhs)->val)};
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {abs_0};
-      return {insn->dest()};
+      if (lhs == rhs) // can hold only for VRs
+         return {abs_0}; // _|_ neutralization; UB when RHS == 0
+      return {insn->dest()}; // potentially UB (trap)
    case insn_binop::_and:
       if (lhs == rhs)
          return {std::move(lhs)};
       if (is<abs>(lhs) && !is<abs>(rhs))
-         swap(lhs, rhs);
+         lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
-         return {std::move(rhs)};
+         return {std::move(rhs)}; // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
@@ -250,9 +241,9 @@ RSN_INLINE std::vector<operand *> rsn::opt::evaluate(insn_binop *insn, std::vect
       if (lhs == rhs)
          return {std::move(lhs)};
       if (is<abs>(lhs) && !is<abs>(rhs))
-         swap(lhs, rhs);
+         lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
-         return {std::move(rhs)};
+         return {std::move(rhs)}; // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
@@ -265,35 +256,35 @@ RSN_INLINE std::vector<operand *> rsn::opt::evaluate(insn_binop *insn, std::vect
       if (lhs == rhs)
          return {std::move(lhs)};
       if (is<abs>(lhs) && !is<abs>(rhs))
-         swap(lhs, rhs);
+         lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val | as<abs>(rhs)->val)};
+         return {abs::make(as<abs>(lhs)->val ^ as<abs>(rhs)->val)};
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id && as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {std::move(lhs)};
       return {insn->dest()};
-   case insn_binop::_shl:
-      if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
-         return {std::move(lhs)};
+   case insn_binop::_shl:  // shift counter is taken by modulo 64 (as on X86)
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0)
+         return {std::move(lhs)}; // possible _|_ neutralization
+      if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make(as<abs>(lhs)->val << (as<abs>(rhs)->val & 0x3F))};
       return {insn->dest()};
-   case insn_binop::_ushr:
-      if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
-         return {std::move(lhs)};
+   case insn_binop::_ushr: // shift counter is taken by modulo 64 (as on X86)
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0)
+         return {std::move(lhs)}; // possible _|_ neutralization
+      if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make(as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
       return {insn->dest()};
-   case insn_binop::_sshr:
-      if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
-         return {std::move(lhs)};
+   case insn_binop::_sshr: // shift counter is taken by modulo 64 (as on X86)
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0)
+         return {std::move(lhs)}; // possible _|_ neutralization
+      if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
          return {std::move(lhs)};
       if (is<abs>(lhs) && is<abs>(rhs))
          return {(long long)abs::make(as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
