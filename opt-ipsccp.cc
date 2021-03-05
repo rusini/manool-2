@@ -127,26 +127,30 @@ RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<
    case insn_binop::_add: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 0))
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val + as<abs>(rhs)->val)};
-      if (is<rel_base>(lhs) && is<abs>(rhs))
-         return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), +as<abs>(rhs)->val)};
-      if (is<rel_disp>(lhs) && is<abs>(rhs))
-         return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
-            (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add + as<abs>(rhs)->val)};
+      if (is<abs>(rhs)) {
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == 0))
+            return {std::move(lhs)};
+         if (is<abs>(lhs))
+            return {abs::make(as<abs>(lhs)->val + as<abs>(rhs)->val)};
+         if (is<rel_base>(lhs))
+            return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), +as<abs>(rhs)->val)};
+         if (is<rel_disp>(lhs))
+            return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
+               (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add + as<abs>(rhs)->val)};
+      }
       return {insn->dest()};
    case insn_binop::_sub: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 0))
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val - as<abs>(rhs)->val)};
-      if (is<rel_base>(lhs) && is<abs>(rhs))
-         return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), -as<abs>(rhs)->val)};
-      if (is<rel_disp>(lhs) && is<abs>(rhs))
-         return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
-            (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add - as<abs>(rhs)->val)};
+      if (is<abs>(rhs)) {
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == 0))
+            return {std::move(lhs)};
+         if (is<abs>(lhs))
+            return {abs::make(as<abs>(lhs)->val - as<abs>(rhs)->val)};
+         if (is<rel_base>(lhs))
+            return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), -as<abs>(rhs)->val)};
+         if (is<rel_disp>(lhs))
+            return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
+               (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add - as<abs>(rhs)->val)};
+      }
       if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
          return {abs_0};
       if (is<rel_disp>(lhs) && is<rel_base>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_base>(rhs)->id)
@@ -161,12 +165,14 @@ RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<
    case insn_binop::/*_mul*/_umul: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 0))
-         return {std::move(rhs)}; // possible _|_ neutralization
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val * as<abs>(rhs)->val)};
+      if (is<abs>(rhs)) {
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == 0))
+            return {std::move(rhs)}; // possible _|_ neutralization
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == 1))
+            return {std::move(lhs)};
+         if (is<abs>(lhs))
+            return {abs::make(as<abs>(lhs)->val * as<abs>(rhs)->val)};
+      }
       return {insn->dest()};
    case insn_binop::_udiv: // division by 0 causes UB
       if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
@@ -235,12 +241,14 @@ RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<
          return {std::move(lhs)};
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
-         return {std::move(rhs)}; // possible _|_ neutralization
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val & as<abs>(rhs)->val)};
+      if (is<abs>(rhs)) {
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
+            return {std::move(rhs)}; // possible _|_ neutralization
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
+            return {std::move(lhs)};
+         if (is<abs>(lhs))
+            return {abs::make(as<abs>(lhs)->val & as<abs>(rhs)->val)};
+      }
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id && as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {std::move(lhs)};
@@ -250,12 +258,14 @@ RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<
          return {std::move(lhs)};
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
-         return {std::move(rhs)}; // possible _|_ neutralization
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val | as<abs>(rhs)->val)};
+      if (is<abs>(rhs)) {
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
+            return {std::move(rhs)}; // possible _|_ neutralization
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
+            return {std::move(lhs)};
+         if (is<abs>(lhs))
+            return {abs::make(as<abs>(lhs)->val | as<abs>(rhs)->val)};
+      }
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id && as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {std::move(lhs)};
@@ -265,10 +275,12 @@ RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<
          return {std::move(lhs)};
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
-      if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
-         return {std::move(lhs)};
-      if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val ^ as<abs>(rhs)->val)};
+      if (is<abs>(rhs)) {
+         if (RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
+            return {std::move(lhs)};
+         if (is<abs>(lhs))
+            return {abs::make(as<abs>(lhs)->val ^ as<abs>(rhs)->val)};
+      }
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id && as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
          return {std::move(lhs)};
