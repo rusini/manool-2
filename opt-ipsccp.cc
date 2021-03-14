@@ -114,11 +114,47 @@ namespace rsn::opt {
 // Some absolute immediate operands to share
 namespace rsn::opt { static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1); }
 
+// Interpret an operation over lattice values
+
+namespace rsn::opt {
+   auto insn_entry
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {std::vector<lib::smart_ptr<operand>>(params().cbegin(), params().cend()), {}}; }
+   auto insn_ret
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {{}, {}}; }
+   auto insn_call
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {std::vector<lib::smart_ptr<operand>>(results().cbegin(), results().cend()), {}}; }
+   auto insn_mov
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {inputs[0], {}}; }
+}
+
+namespace rsn::opt {
+   static inline std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> evaluate(insn_ret *, std::vector<lib::smart_ptr<operand>> &&);
+}
+RSN_INLINE auto rsn::opt::evaluate(insn_ret *insn, std::vector<lib::smart_ptr<operand>> &&inputs)
+->std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> {
+   return {{}, {}};
+}
+RSN_INLINE auto rsn::opt::evaluate(insn_call *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
+   std::vector<lib::smart_ptr<operand>> res(insn->results().cbegin(), insn->results().cend()); return res;
+}
+RSN_INLINE auto rsn::opt::evaluate(insn_mov *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
+   return {inputs[0]};
+}
+RSN_INLINE auto rsn::opt::evaluate(insn_load *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
+   return {insn->dest()};
+}
+RSN_INLINE auto rsn::opt::evaluate(insn_store *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
+   return {};
+}
 namespace rsn::opt {
    static inline std::vector<lib::smart_ptr<operand>> evaluate(insn_binop *, std::vector<lib::smart_ptr<operand>> &&);
 }
-// Interpret an operation over lattice values
-RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
+RSN_INLINE auto rsn::opt::evaluate( insn_binop *insn,
+   std::vector<lib::smart_ptr<operand>> &&inputs )->std::vector<lib::smart_ptr<operand>> {
    auto &lhs = inputs[0], &rhs = inputs[1];
    if (!lhs || !rhs) return {{}}; // see "Engineering a Compiler", p. 517
    switch (insn->op) {
@@ -309,6 +345,59 @@ RSN_INLINE auto rsn::opt::evaluate(insn_binop *insn, std::vector<lib::smart_ptr<
       if (is<abs>(lhs) && is<abs>(rhs))
          return {abs::make((long long)as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
       return {insn->dest()};
+   }
+}
+RSN_INLINE auto rsn::opt::evaluate(insn_jmp *insn,
+   std::vector<lib::smart_ptr<operand>> &&inputs)->std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> {
+   return {{}, {insn->dest()}};
+}
+RSN_INLINE auto rsn::opt::evaluate( insn_br *insn,
+   std::vector<lib::smart_ptr<operand>> &&inputs )->std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> {
+   auto &lhs = inputs[0], &rhs = inputs[1];
+   if (!lhs || !rhs) return {{}}; // see "Engineering a Compiler", p. 517
+   switch (insn->op) {
+   default:
+      RSN_UNREACHABLE();
+   case insn_binop::_beq:
+      if (lhs == rhs)
+         return {{}, {insn->dest1()}};
+      if (is<abs>(lhs) && is<abs>(rhs))
+         return {{}, {as<abs>(lhs)->val == as<abs>(val)->val ? insn->dest1() : insn->dest2()}};
+      if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
+         return {{}, {insn->dest1()}};
+      if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
+         return {{}, {as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()}};
+      if (is<imm>(lhs) && is<imm>(rhs))
+         return {{}, {insn->dest2()}};
+      return {{}, {insn->dest1(), insn->dest2()}};
+   case insn_binop::_bult:
+      if (lhs == rhs)
+         return {{}, {insn->dest2()}};
+      if (is<abs>(lhs) && is<abs>(rhs))
+         return {{}, {as<abs>(lhs)->val < as<abs>(val)->val ? insn->dest1() : insn->dest2()}};
+      if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
+         return {{}, {insn->dest2()}};
+      if (is<rel_base>(lhs) && is<rel_disp>(rhs) && as<rel_base>(lhs)->id == as<rel_disp>(rhs)->base->id)
+         return {{}, {(long long)as<rel_disp>(rhs)->add > 0 ? insn->dest1() : insn->dest2()}};
+      if (is<rel_base>(rhs) && is<rel_disp>(lhs) && as<rel_base>(rhs)->id == as<rel_disp>(lhs)->base->id)
+         return {{}, {(long long)as<rel_disp>(lhs)->add < 0 ? insn->dest1() : insn->dest2()}};
+      if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
+         return {{}, {(long long)as<rel_disp>(lhs)->add < (long long)as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()}};
+      return {{}, {insn->dest1(), insn->dest2()}};
+   case insn_binop::_bslt:
+      if (lhs == rhs)
+         return {{}, {insn->dest2()}};
+      if (is<abs>(lhs) && is<abs>(rhs))
+         return {{}, {(long long)as<abs>(lhs)->val < (long long)as<abs>(val)->val ? insn->dest1() : insn->dest2()}};
+      if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
+         return {{}, {insn->dest2()}};
+      if (is<rel_base>(lhs) && is<rel_disp>(rhs) && as<rel_base>(lhs)->id == as<rel_disp>(rhs)->base->id)
+         return {{}, {(long long)as<rel_disp>(rhs)->add > 0 ? insn->dest1() : insn->dest2()}};
+      if (is<rel_base>(rhs) && is<rel_disp>(lhs) && as<rel_base>(rhs)->id == as<rel_disp>(lhs)->base->id)
+         return {{}, {(long long)as<rel_disp>(lhs)->add < 0 ? insn->dest1() : insn->dest2()}};
+      if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
+         return {{}, {(long long)as<rel_disp>(lhs)->add < (long long)as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()}};
+      return {{}, {insn->dest1(), insn->dest2()}};
    }
 }
 
