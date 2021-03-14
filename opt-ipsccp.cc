@@ -99,64 +99,52 @@ void rsn::opt::transform_ipsccp(proc *pc) {
       if (RSN_UNLIKELY(flag))
    }
 }
-
-
-// Some absolute immediate operands to share
-namespace rsn::opt { static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1); }
-
-namespace rsn::opt {
-   static inline std::vector<lib::smart_ptr<operand>> evaluate(insn_binop *, std::vector<lib::smart_ptr<operand>> &&);
-   std::vector<lib::smart_ptr<operand>> rsn::opt::insn_binop::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)
-      { return opt::evaluate(this, std::move(inputs)); }
-}
 # endif
 
-// Some absolute immediate operands to share
-namespace rsn::opt { static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1); }
-
-// Interpret an operation over lattice values
-
-namespace rsn::opt {
+namespace rsn::opt { // Forward declarations
+   static inline lib::smart_ptr<operand> evaluate(const insn_binop *, lib::smart_ptr<operand> &&, lib::smart_ptr<operand> &&);
+   static inline std::vector<bblock *> evaluate(const insn_br *, lib::smart_ptr<operand> &&, lib::smart_ptr<operand> &&);
+   static inline std::vector<bblock *> evaluate(const insn_switch_br *, lib::smart_ptr<operand> &&);
+}
+namespace rsn::opt { // Interpret an operation over lattice values
    auto insn_entry
-   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
-      { return {std::vector<lib::smart_ptr<operand>>(params().cbegin(), params().cend()), {}}; }
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {std::vector<lib::smart_ptr<operand>>(params().begin(), params().end()), {}}; }
    auto insn_ret
-   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
       { return {{}, {}}; }
    auto insn_call
-   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
-      { return {std::vector<lib::smart_ptr<operand>>(results().cbegin(), results().cend()), {}}; }
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {std::vector<lib::smart_ptr<operand>>(results().begin(), results().end()), {}}; }
    auto insn_mov
-   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs)->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
-      { return {inputs[0], {}}; }
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { std::vector<lib::smart_ptr<operand>> outputs; outputs.push_back(std::move(inputs[0]));
+        return {std::move(outputs), {}}; }
+   auto insn_load
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {{dest()}, {}}; }
+   auto insn_store
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {{}, {}}; }
+   auto insn_binop
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { std::vector<lib::smart_ptr<operand>> outputs; outputs.push_back(opt::evaluate(this, std::move(inputs[0]), std::move(inputs[1])));
+        return {std::move(outputs), {}}; }
+   auto insn_jmp
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {{}, {dest()}}; }
+   auto insn_br
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {{}, opt::evaluate(this, std::move(inputs[0]), std::move(inputs[1]))}; }
+   auto insn_switch_br
+   ::evaluate(std::vector<lib::smart_ptr<operand>> &&inputs) const->std::tuple<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>>
+      { return {{}, opt::evaluate(this, std::move(inputs[0]))}; }
 }
 
-namespace rsn::opt {
-   static inline std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> evaluate(insn_ret *, std::vector<lib::smart_ptr<operand>> &&);
-}
-RSN_INLINE auto rsn::opt::evaluate(insn_ret *insn, std::vector<lib::smart_ptr<operand>> &&inputs)
-->std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> {
-   return {{}, {}};
-}
-RSN_INLINE auto rsn::opt::evaluate(insn_call *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
-   std::vector<lib::smart_ptr<operand>> res(insn->results().cbegin(), insn->results().cend()); return res;
-}
-RSN_INLINE auto rsn::opt::evaluate(insn_mov *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
-   return {inputs[0]};
-}
-RSN_INLINE auto rsn::opt::evaluate(insn_load *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
-   return {insn->dest()};
-}
-RSN_INLINE auto rsn::opt::evaluate(insn_store *insn, std::vector<lib::smart_ptr<operand>> &&inputs)->std::vector<lib::smart_ptr<operand>> {
-   return {};
-}
-namespace rsn::opt {
-   static inline std::vector<lib::smart_ptr<operand>> evaluate(insn_binop *, std::vector<lib::smart_ptr<operand>> &&);
-}
-RSN_INLINE auto rsn::opt::evaluate( insn_binop *insn,
-   std::vector<lib::smart_ptr<operand>> &&inputs )->std::vector<lib::smart_ptr<operand>> {
-   auto &lhs = inputs[0], &rhs = inputs[1];
-   if (!lhs || !rhs) return {{}}; // see "Engineering a Compiler", p. 517
+namespace rsn::opt { static RSN_IF_WITH_MT(thread_local) const auto abs_0 = abs::make(0), abs_1 = abs::make(1); } // some absolute immediate operands to share
+
+RSN_INLINE auto rsn::opt::evaluate(const insn_binop *insn, lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs)->lib::smart_ptr<operand>
+   if (!lhs || !rhs) return {}; // see "Engineering a Compiler", p. 517
    switch (insn->op) {
    default:
       RSN_UNREACHABLE();
@@ -165,370 +153,242 @@ RSN_INLINE auto rsn::opt::evaluate( insn_binop *insn,
          lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs)) {
          if (RSN_UNLIKELY(as<abs>(rhs)->val == 0))
-            return {std::move(lhs)};
+            return std::move(lhs);
          if (is<abs>(lhs))
-            return {abs::make(as<abs>(lhs)->val + as<abs>(rhs)->val)};
+            return abs::make(as<abs>(lhs)->val + as<abs>(rhs)->val);
          if (is<rel_base>(lhs))
-            return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), +as<abs>(rhs)->val)};
+            return rel_disp::make(as_smart<rel_base>(std::move(lhs)), +as<abs>(rhs)->val);
          if (is<rel_disp>(lhs))
-            return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
-               (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add + as<abs>(rhs)->val)};
+            return !RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
+               (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add + as<abs>(rhs)->val);
       }
-      return {insn->dest()};
+      return insn->dest();
    case insn_binop::_sub: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(rhs)) {
          if (RSN_UNLIKELY(as<abs>(rhs)->val == 0))
-            return {std::move(lhs)};
+            return std::move(lhs);
          if (is<abs>(lhs))
-            return {abs::make(as<abs>(lhs)->val - as<abs>(rhs)->val)};
+            return abs::make(as<abs>(lhs)->val - as<abs>(rhs)->val);
          if (is<rel_base>(lhs))
-            return {rel_disp::make(as_smart<rel_base>(std::move(lhs)), -as<abs>(rhs)->val)};
+            return rel_disp::make(as_smart<rel_base>(std::move(lhs)), -as<abs>(rhs)->val);
          if (is<rel_disp>(lhs))
-            return {!RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
-               (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add - as<abs>(rhs)->val)};
+            return !RSN_LIKELY(as<rel_disp>(lhs)->add + as<abs>(rhs)->val) ? (lib::smart_ptr<operand>)as<rel_disp>(lhs)->base :
+               (lib::smart_ptr<operand>)rel_disp::make(as<rel_disp>(lhs)->base, as<rel_disp>(lhs)->add - as<abs>(rhs)->val);
       }
       if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
-         return {abs_0};
+         return abs_0;
       if (is<rel_disp>(lhs) && is<rel_base>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_base>(rhs)->id)
-         return {abs::make(+as<rel_disp>(lhs)->add)};
+         return abs::make(+as<rel_disp>(lhs)->add);
       if (is<rel_disp>(rhs) && is<rel_base>(lhs) && as<rel_disp>(rhs)->base->id == as<rel_base>(lhs)->id)
-         return {abs::make(-as<rel_disp>(rhs)->add)};
+         return abs::make(-as<rel_disp>(rhs)->add);
       if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
-         return {abs::make(as<rel_disp>(lhs)->add - as<rel_disp>(rhs)->add)};
+         return abs::make(as<rel_disp>(lhs)->add - as<rel_disp>(rhs)->add);
       if (lhs == rhs) // can hold only for VRs at this point
-         return {abs_0}; // _|_ neutralization
-      return {insn->dest()};
+         return abs_0; // _|_ neutralization
+      return insn->dest();
    case insn_binop::/*_mul*/_umul: // the result on overflow is reduced to modulo 2**64 (for unsigned interpretation)
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs)) {
          if (RSN_UNLIKELY(as<abs>(rhs)->val == 0))
-            return {std::move(rhs)}; // possible _|_ neutralization
+            return std::move(rhs); // possible _|_ neutralization
          if (RSN_UNLIKELY(as<abs>(rhs)->val == 1))
-            return {std::move(lhs)};
+            return std::move(lhs);
          if (is<abs>(lhs))
-            return {abs::make(as<abs>(lhs)->val * as<abs>(rhs)->val)};
+            return abs::make(as<abs>(lhs)->val * as<abs>(rhs)->val);
       }
-      return {insn->dest()};
+      return insn->dest();
    case insn_binop::_udiv: // division by 0 causes UB
       if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
-         return {insn->dest()}; // _|_ for further lowering to insn_oops
+         return insn->dest(); // _|_ for further lowering to insn_oops
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
-         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+         return std::move(lhs); // possible _|_ neutralization; UB when RHS == 0
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val / as<abs>(rhs)->val)};
+         return abs::make(as<abs>(lhs)->val / as<abs>(rhs)->val);
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
-         return {abs_1};
+         return abs_1;
       if (lhs == rhs) // can hold only for VRs at this point
-         return {abs_1}; // _|_ neutralization; UB when RHS == 0
-      return {insn->dest()}; // UB (trap) when RHS == 0
+         return abs_1; // _|_ neutralization; UB when RHS == 0
+      return insn->dest(); // UB (trap) when RHS == 0
    case insn_binop::_urem: // division by 0 causes UB
       if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
-         return {insn->dest()}; // _|_ for further lowering to insn_oops
+         return insn->dest(); // _|_ for further lowering to insn_oops
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
-         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+         return std::move(lhs); // possible _|_ neutralization; UB when RHS == 0
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
-         return {abs_0}; // possible _|_ neutralization
+         return abs_0; // possible _|_ neutralization
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val % as<abs>(rhs)->val)};
+         return abs::make(as<abs>(lhs)->val % as<abs>(rhs)->val);
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
-         return {abs_0};
+         return abs_0;
       if (lhs == rhs) // can hold only for VRs at this point
-         return {abs_0}; // _|_ neutralization; UB when RHS == 0
-      return {insn->dest()}; // UB (trap) when RHS == 0
+         return abs_0; // _|_ neutralization; UB when RHS == 0
+      return insn->dest(); // UB (trap) when RHS == 0
    case insn_binop::_sdiv: // division by 0 and division of the minimum negative number by -1 causes UB
       if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
-         return {insn->dest()}; // _|_ for further lowering to insn_oops [*]
+         return insn->dest(); // _|_ for further lowering to insn_oops [*]
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
-         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+         return std::move(lhs); // possible _|_ neutralization; UB when RHS == 0
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {as<abs>(lhs)->val == std::numeric_limits<long long>::max() && as<abs>(rhs)->val == -1 ? (lib::smart_ptr<operand>)insn->dest() /*[*]*/ :
-            (lib::smart_ptr<operand>)abs::make((long long)as<abs>(lhs)->val / (long long)as<abs>(rhs)->val)};
+         return as<abs>(lhs)->val == std::numeric_limits<long long>::max() && as<abs>(rhs)->val == -1 ? (lib::smart_ptr<operand>)insn->dest() /*[*]*/ :
+            (lib::smart_ptr<operand>)abs::make((long long)as<abs>(lhs)->val / (long long)as<abs>(rhs)->val);
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
-         return {abs_1};
+         return abs_1;
       if (lhs == rhs) // can hold only for VRs at this point
-         return {abs_1}; // _|_ neutralization; UB when RHS == 0
-      return {insn->dest()}; // potentially UB (trap)
+         return abs_1; // _|_ neutralization; UB when RHS == 0
+      return insn->dest(); // potentially UB (trap)
    case insn_binop::_srem: // division by 0 and division of the minimum negative number by -1 causes UB
       if (is<abs>(rhs) && !RSN_LIKELY(as<abs>(rhs)->val))
-         return {insn->dest()}; // _|_ for further lowering to insn_oops [*]
+         return insn->dest(); // _|_ for further lowering to insn_oops [*]
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
-         return {std::move(lhs)}; // possible _|_ neutralization; UB when RHS == 0
+         return std::move(lhs); // possible _|_ neutralization; UB when RHS == 0
       if (is<abs>(rhs) && RSN_UNLIKELY(as<abs>(rhs)->val == 1))
-         return {abs_0}; // possible _|_ neutralization
+         return abs_0; // possible _|_ neutralization
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {as<abs>(lhs)->val == std::numeric_limits<long long>::max() && as<abs>(rhs)->val == -1 ? (lib::smart_ptr<operand>)insn->dest() /*[*]*/ :
-            (lib::smart_ptr<operand>)abs::make((long long)as<abs>(lhs)->val % (long long)as<abs>(rhs)->val)};
+         return as<abs>(lhs)->val == std::numeric_limits<long long>::max() && as<abs>(rhs)->val == -1 ? (lib::smart_ptr<operand>)insn->dest() /*[*]*/ :
+            (lib::smart_ptr<operand>)abs::make((long long)as<abs>(lhs)->val % (long long)as<abs>(rhs)->val);
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id || as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
-         return {abs_0};
+         return abs_0;
       if (lhs == rhs) // can hold only for VRs at this point
-         return {abs_0}; // _|_ neutralization; UB when RHS == 0
-      return {insn->dest()}; // potentially UB (trap)
+         return abs_0; // _|_ neutralization; UB when RHS == 0
+      return insn->dest(); // potentially UB (trap)
    case insn_binop::_and:
       if (lhs == rhs)
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs)) {
          if (RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
-            return {std::move(rhs)}; // possible _|_ neutralization
+            return std::move(rhs); // possible _|_ neutralization
          if (RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
-            return {std::move(lhs)};
+            return std::move(lhs);
          if (is<abs>(lhs))
-            return {abs::make(as<abs>(lhs)->val & as<abs>(rhs)->val)};
+            return abs::make(as<abs>(lhs)->val & as<abs>(rhs)->val);
       }
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id && as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
-         return {std::move(lhs)};
-      return {insn->dest()};
+         return std::move(lhs);
+      return insn->dest();
    case insn_binop::_or:
       if (lhs == rhs)
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs)) {
          if (RSN_UNLIKELY(as<abs>(rhs)->val == ~0ull))
-            return {std::move(rhs)}; // possible _|_ neutralization
+            return std::move(rhs); // possible _|_ neutralization
          if (RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
-            return {std::move(lhs)};
+            return std::move(lhs);
          if (is<abs>(lhs))
-            return {abs::make(as<abs>(lhs)->val | as<abs>(rhs)->val)};
+            return abs::make(as<abs>(lhs)->val | as<abs>(rhs)->val);
       }
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id && as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
-         return {std::move(lhs)};
-      return {insn->dest()};
+         return std::move(lhs);
+      return insn->dest();
    case insn_binop::_xor:
       if (lhs == rhs)
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && !is<abs>(rhs))
          lhs.swap(rhs); // canonicalize to simplify analysis below
       if (is<abs>(rhs)) {
          if (RSN_UNLIKELY(as<abs>(rhs)->val == +0ull))
-            return {std::move(lhs)};
+            return std::move(lhs);
          if (is<abs>(lhs))
-            return {abs::make(as<abs>(lhs)->val ^ as<abs>(rhs)->val)};
+            return abs::make(as<abs>(lhs)->val ^ as<abs>(rhs)->val);
       }
       if ( is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id ||
            is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id && as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add )
-         return {std::move(lhs)};
-      return {insn->dest()};
+         return std::move(lhs);
+      return insn->dest();
    case insn_binop::_shl:  // shift counter is taken by modulo 64 (as on X86)
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
-         return {std::move(lhs)}; // possible _|_ neutralization
+         return std::move(lhs); // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val << (as<abs>(rhs)->val & 0x3F))};
-      return {insn->dest()};
+         return abs::make(as<abs>(lhs)->val << (as<abs>(rhs)->val & 0x3F));
+      return insn->dest();
    case insn_binop::_ushr: // shift counter is taken by modulo 64 (as on X86)
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
-         return {std::move(lhs)}; // possible _|_ neutralization
+         return std::move(lhs); // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make(as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
-      return {insn->dest()};
+         return abs::make(as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F));
+      return insn->dest();
    case insn_binop::_sshr: // shift counter is taken by modulo 64 (as on X86)
       if (is<abs>(lhs) && RSN_UNLIKELY(as<abs>(lhs)->val == 0))
-         return {std::move(lhs)}; // possible _|_ neutralization
+         return std::move(lhs); // possible _|_ neutralization
       if (is<abs>(rhs) && RSN_UNLIKELY((as<abs>(rhs)->val & 0x3F) == 0))
-         return {std::move(lhs)};
+         return std::move(lhs);
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {abs::make((long long)as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F))};
-      return {insn->dest()};
+         return abs::make((long long)as<abs>(lhs)->val >> (as<abs>(rhs)->val & 0x3F));
+      return insn->dest();
    }
 }
-RSN_INLINE auto rsn::opt::evaluate(insn_jmp *insn,
-   std::vector<lib::smart_ptr<operand>> &&inputs)->std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> {
-   return {{}, {insn->dest()}};
-}
-RSN_INLINE auto rsn::opt::evaluate( insn_br *insn,
-   std::vector<lib::smart_ptr<operand>> &&inputs )->std::pair<std::vector<lib::smart_ptr<operand>>, std::vector<bblock *>> {
-   auto &lhs = inputs[0], &rhs = inputs[1];
-   if (!lhs || !rhs) return {{}}; // see "Engineering a Compiler", p. 517
+
+RSN_INLINE auto rsn::opt::evaluate(const insn_br *insn, lib::smart_ptr<operand> &&lhs, lib::smart_ptr<operand> &&rhs)->std::vector<bblock *> {
+   if (!lhs || !rhs) return {}; // see "Engineering a Compiler", p. 517
    switch (insn->op) {
    default:
       RSN_UNREACHABLE();
    case insn_binop::_beq:
       if (lhs == rhs)
-         return {{}, {insn->dest1()}};
+         return {insn->dest1()};
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {{}, {as<abs>(lhs)->val == as<abs>(val)->val ? insn->dest1() : insn->dest2()}};
+         return {as<abs>(lhs)->val == as<abs>(val)->val ? insn->dest1() : insn->dest2()};
       if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
-         return {{}, {insn->dest1()}};
+         return {insn->dest1()};
       if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
-         return {{}, {as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()}};
+         return {as<rel_disp>(lhs)->add == as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()};
       if (is<imm>(lhs) && is<imm>(rhs))
-         return {{}, {insn->dest2()}};
-      return {{}, {insn->dest1(), insn->dest2()}};
+         return {insn->dest2()};
+      return {insn->dest1(), insn->dest2()};
    case insn_binop::_bult:
       if (lhs == rhs)
-         return {{}, {insn->dest2()}};
+         return {insn->dest2()};
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {{}, {as<abs>(lhs)->val < as<abs>(val)->val ? insn->dest1() : insn->dest2()}};
+         return {as<abs>(lhs)->val < as<abs>(val)->val ? insn->dest1() : insn->dest2()};
       if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
-         return {{}, {insn->dest2()}};
+         return {insn->dest2()};
       if (is<rel_base>(lhs) && is<rel_disp>(rhs) && as<rel_base>(lhs)->id == as<rel_disp>(rhs)->base->id)
-         return {{}, {(long long)as<rel_disp>(rhs)->add > 0 ? insn->dest1() : insn->dest2()}};
+         return {(long long)as<rel_disp>(rhs)->add > 0 ? insn->dest1() : insn->dest2()};
       if (is<rel_base>(rhs) && is<rel_disp>(lhs) && as<rel_base>(rhs)->id == as<rel_disp>(lhs)->base->id)
-         return {{}, {(long long)as<rel_disp>(lhs)->add < 0 ? insn->dest1() : insn->dest2()}};
+         return {(long long)as<rel_disp>(lhs)->add < 0 ? insn->dest1() : insn->dest2()};
       if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
-         return {{}, {(long long)as<rel_disp>(lhs)->add < (long long)as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()}};
-      return {{}, {insn->dest1(), insn->dest2()}};
+         return {(long long)as<rel_disp>(lhs)->add < (long long)as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()};
+      return {insn->dest1(), insn->dest2()};
    case insn_binop::_bslt:
       if (lhs == rhs)
-         return {{}, {insn->dest2()}};
+         return {insn->dest2()};
       if (is<abs>(lhs) && is<abs>(rhs))
-         return {{}, {(long long)as<abs>(lhs)->val < (long long)as<abs>(val)->val ? insn->dest1() : insn->dest2()}};
+         return {(long long)as<abs>(lhs)->val < (long long)as<abs>(val)->val ? insn->dest1() : insn->dest2()};
       if (is<rel_base>(lhs) && is<rel_base>(rhs) && as<rel_base>(lhs)->id == as<rel_base>(rhs)->id)
-         return {{}, {insn->dest2()}};
+         return {insn->dest2()};
       if (is<rel_base>(lhs) && is<rel_disp>(rhs) && as<rel_base>(lhs)->id == as<rel_disp>(rhs)->base->id)
-         return {{}, {(long long)as<rel_disp>(rhs)->add > 0 ? insn->dest1() : insn->dest2()}};
+         return {(long long)as<rel_disp>(rhs)->add > 0 ? insn->dest1() : insn->dest2()};
       if (is<rel_base>(rhs) && is<rel_disp>(lhs) && as<rel_base>(rhs)->id == as<rel_disp>(lhs)->base->id)
-         return {{}, {(long long)as<rel_disp>(lhs)->add < 0 ? insn->dest1() : insn->dest2()}};
+         return {(long long)as<rel_disp>(lhs)->add < 0 ? insn->dest1() : insn->dest2()};
       if (is<rel_disp>(lhs) && is<rel_disp>(rhs) && as<rel_disp>(lhs)->base->id == as<rel_disp>(rhs)->base->id)
-         return {{}, {(long long)as<rel_disp>(lhs)->add < (long long)as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()}};
-      return {{}, {insn->dest1(), insn->dest2()}};
+         return {(long long)as<rel_disp>(lhs)->add < (long long)as<rel_disp>(rhs)->add ? insn->dest1() : insn->dest2()};
+      return {insn->dest1(), insn->dest2()};
    }
 }
 
-# if 0
-namespace rsn::opt { static bool simplify(insn_br *); bool insn_br::simplify() { return opt::simplify(this); } }
-
-RSN_INLINE static inline bool rsn::opt::simplify(insn_br *in) {
-   const auto owner = [in]()RSN_INLINE{ return in->owner(); };
-   const auto eliminate = [in]()RSN_INLINE{ in->eliminate(); };
-   decltype(auto) lhs = in->lhs(), rhs = in->rhs();
-   decltype(auto) dest1 = in->dest1(), dest2 = in->dest2();
-   bool changed{};
-   switch (in->op) {
-   default:
-      RSN_UNREACHABLE();
-   case insn_br::_beq:
-      if (is<abs>(lhs)) {
-         if (!is<abs>(rhs)) // canonicalization
-            changed = (lhs.swap(rhs), true);
-      } else
-      if (is<imm>(lhs) && !is<imm>(rhs)) // canonicalization
-         return lhs.swap(rhs), true;
-      if (is<abs>(lhs) && is<abs>(rhs)) // constant folding
-         return insn_jmp::make(in, std::move(as<abs>(lhs)->val == as<abs>(rhs)->val ? dest1 : dest2)), eliminate(), true;
-      return changed;
-   case insn_br::_bult:
-      if (is<abs>(lhs) && is<abs>(rhs)) // constant folding
-         return insn_jmp::make(in, std::move(as<abs>(lhs)->val < as<abs>(rhs)->val ? dest1 : dest2)), eliminate(), true;
-      return {};
-   case insn_br::_bslt:
-      if (is<abs>(lhs) && is<abs>(rhs)) // constant folding
-         return insn_jmp::make(in, std::move((long long)as<abs>(lhs)->val < (long long)as<abs>(rhs)->val ? dest1 : dest2)), eliminate(), true;
-      return {};
+RSN_INLINE auto rsn::opt::evaluate(const insn_switch_br *insn, lib::smart_ptr<operand> &&index)->std::vector<bblock *> {
+   if (!index) return {}; // see "Engineering a Compiler", p. 517
+   if (is<abs>(index)) {
+      if (RSN_UNLIKELY(as<abs>(index)->val >= dests().size())) return {};
+      return {insn->dests()[as<abs>(index)->val]};
    }
+   return std::vector<bblock *>(insn->dests().begin(), insn->dests().end());
 }
-
-namespace rsn::opt { static bool simplify(insn_switch_br *); bool insn_switch_br::simplify() { return opt::simplify(this); } }
-
-RSN_INLINE static inline bool rsn::opt::simplify(insn_switch_br *in) {
-   if (!is<abs>(in->index())) return {};
-   // constant folding
-   if (RSN_UNLIKELY(as<abs>(in->index())->val >= in->dests().size())) insn_oops::make(in), in->eliminate(), true;
-   return insn_jmp::make(in, in->dests()[as<abs>(in->index())->val]), in->eliminate(), true;
-}
-
-namespace rsn::opt { static bool simplify(insn_call *); bool insn_call::simplify() { return opt::simplify(this); } }
-
-RSN_INLINE inline bool rsn::opt::simplify(insn_call *insn) {
-   // context shortcuts
-   auto owner = [insn]() noexcept RSN_INLINE{ return insn->owner(); };
-   auto next  = [insn]() noexcept RSN_INLINE{ return insn->next(); };
-   auto prev  = [insn]() noexcept RSN_INLINE{ return insn->prev(); };
-   auto eliminate = [insn]() noexcept RSN_INLINE{ insn->eliminate(); };
-   const decltype(insn->dest())    _dest    = insn->dest();    auto dest    = [&_dest]() noexcept RSN_INLINE->auto &    { return _dest; };
-   const decltype(insn->params())  _params  = insn->params();  auto params  = [&_params]() noexcept RSN_INLINE->auto &  { return _params; };
-   const decltype(insn->results()) _results = insn->results(); auto results = [&_results]() noexcept RSN_INLINE->auto & { return _results; };
-
-   if (RSN_LIKELY(!is<proc>(dest()))) return false;
-   auto pc = as<proc>(dest());
-
-   // temporary mappings
-   auto bbmap = [&]() RSN_INLINE{
-      std::vector<bblock *>::size_type count = 0;
-      for (auto bb = pc->head(); bb; bb = bb->next()) ++count;
-      std::vector<bblock *> res(count);
-      return res;
-   }();
-   auto vrmap = [&]() RSN_INLINE{
-      std::vector<lib::smart_ptr<vreg>>::size_type count = 0;
-      for (auto bb = pc->head(); bb; bb = bb->next()) for (auto in = bb->head(); in; in = in->next()) {
-         for (auto &input: in->inputs()) if (is<vreg>(input)) if (RSN_UNLIKELY(as<vreg>(input)->sn >= count)) count = as<vreg>(input)->sn + 1;
-         for (auto &output: in->outputs()) if (RSN_UNLIKELY(output->sn >= count)) count = output->sn + 1;
-      }
-      std::vector<lib::smart_ptr<vreg>> res(count);
-      for (; count; --count) res.push_back(vreg::make());
-      return res;
-   }();
-
-   // integrate and expand the insn_entry
-   if (RSN_UNLIKELY(as<insn_entry>(pc->head()->head())->params().size() != params().size()))
-      insn_oops::make(insn);
-   else for (std::size_t sn = 0; sn < params().size(); ++sn)
-      insn_mov::make(insn, std::move(params()[sn]), vrmap[as<insn_entry>(pc->head()->head())->params()[sn]->sn]);
-   // integrate the rest of entry BB
-   for (auto in = pc->head()->head()->next(); in; in = in->next()) {
-      in->clone(insn);
-      for (auto &input: prev()->inputs()) if (is<vreg>(input)) input = vrmap[as<vreg>(input)->sn];
-      for (auto &output: prev()->outputs()) output = vrmap[output->sn];
-   }
-
-   if (RSN_LIKELY(!pc->head()->next())) {
-      // expand the insn_ret
-      if (RSN_UNLIKELY(as<insn_ret>(prev())->results().size() != results().size()))
-         insn_oops::make(prev());
-      else
-      for (std::size_t sn = 0; sn < results().size(); ++sn)
-         insn_mov::make(prev(), std::move(as<insn_ret>(prev())->results()[sn]), std::move(results()[sn]));
-      prev()->eliminate();
-   } else {
-      bbmap[pc->head()->sn] = owner();
-      {  // split the BB at the insn_call
-         auto bb = RSN_LIKELY(owner()->next()) ? bblock::make(owner()->next()) : bblock::make(owner()->owner());
-         for (auto in: all(insn, {})) in->reattach(bb);
-      }
-      // integrate the rest of BBs
-      for (auto bb = pc->head()->next(); bb; bb = bb->next()) {
-         bbmap[bb->sn] = bblock::make(owner());
-         // integrate instructions
-         for (auto in = bb->head(); in; in = in->next()) {
-            in->clone(owner()->prev());
-            for (auto &input: owner()->prev()->rear()->inputs()) if (is<vreg>(input)) input = vrmap[as<vreg>(input)->sn];
-            for (auto &output: owner()->prev()->rear()->outputs()) output = vrmap[output->sn];
-         }
-      }
-
-      for (auto bb = pc->head(); bb; bb = bb->next())
-      if (RSN_LIKELY(!is<insn_ret>(bbmap[bb->sn]->rear())))
-         // fixup jump targets
-         for (auto &target: bbmap[bb->sn]->rear()->targets()) target = bbmap[target->sn];
-      else {
-         // expand an insn_ret
-         if (RSN_UNLIKELY(as<insn_ret>(bbmap[bb->sn]->rear())->results().size() != results().size()))
-            insn_oops::make(bbmap[bb->sn]->rear());
-         else
-         for (std::size_t sn = 0; sn < results().size(); ++sn)
-            insn_mov::make(bbmap[bb->sn]->rear(), std::move(as<insn_ret>(bbmap[bb->sn]->rear())->results()[sn]), results()[sn]);
-         insn_jmp::make(bbmap[bb->sn]->rear(), owner());
-         bbmap[bb->sn]->rear()->eliminate();
-      }
-   }
-
-   return eliminate(), true;
-}
-# endif
